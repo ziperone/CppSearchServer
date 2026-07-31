@@ -1,0 +1,155 @@
+#include "http/HttpResponse.h"
+#include "net/EventLoop.h"
+#include "net/Socket.h"
+
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include <array>
+#include <cerrno>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+
+namespace {
+
+std::string extractPath(const std::string& request) {
+    const std::string method = "GET ";
+    if (request.rfind(method, 0) != 0) {
+        return "/";
+    }
+
+    std::size_t path_begin = method.size();
+    std::size_t path_end = request.find(' ', path_begin);
+    if (path_end == std::string::npos) {
+        return "/";
+    }
+
+    return request.substr(path_begin, path_end - path_begin);
+}
+
+std::string route(const std::string& path) {
+    if (path == "/") {
+        return http::okText("Hello CppSearchServer\n");
+    }
+
+    const std::string search_prefix = "/search?";
+    if (path.rfind(search_prefix, 0) == 0) {
+        std::string query = path.substr(search_prefix.size());
+        return http::okJson("{\"message\":\"search endpoint is reserved for week 5\",\"query\":\"" + query + "\"}\n");
+    }
+
+    return http::notFound();
+}
+
+void writeAll(int fd, const std::string& data) {
+    const char* buffer = data.data();
+    std::size_t total = data.size();
+    std::size_t sent = 0;
+
+    while (sent < total) {
+        ssize_t n = ::send(fd, buffer + sent, total - sent, 0);
+        if (n <= 0) {
+            return;
+        }
+        sent += static_cast<std::size_t>(n);
+    }
+}
+
+void handleClient(int client_fd) {
+    std::array<char, 4096> buffer {};
+    ssize_t n = ::recv(client_fd, buffer.data(), buffer.size() - 1, 0);
+    if (n <= 0) {
+        return;
+    }
+
+    std::string request(buffer.data(), static_cast<std::size_t>(n));
+    std::string path = extractPath(request);
+    std::string response = route(path);
+    writeAll(client_fd, response);
+}
+
+void serveWithEventLoop(int listen_fd) {
+    if (net::setNonBlocking(listen_fd) < 0) {
+        throw std::runtime_error(std::string("set listen fd nonblocking failed: ") + std::strerror(errno));
+    }
+
+    net::EventLoop loop;
+
+    loop.addReadEvent(listen_fd, [&loop](int fd) {
+        while (true) {
+            sockaddr_storage client_addr {};
+            socklen_t client_len = sizeof(client_addr);
+            int client_fd = ::accept(fd, reinterpret_cast<sockaddr*>(&client_addr), &client_len);
+
+            if (client_fd < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    break;
+                }
+                perror("accept");
+                break;
+            }
+
+            if (net::setNonBlocking(client_fd) < 0) {
+                perror("set client fd nonblocking");
+                net::closeFd(client_fd);
+                continue;
+            }
+
+            loop.addReadEvent(client_fd, [&loop](int ready_fd) {
+                handleClient(ready_fd);
+                loop.removeEvent(ready_fd);
+                net::closeFd(ready_fd);
+            });
+        }
+    });
+
+    loop.loop();
+}
+
+[[maybe_unused]] void serveForever(int listen_fd) {
+    while (true) {
+        sockaddr_storage client_addr {};
+        socklen_t client_len = sizeof(client_addr);
+        int client_fd = ::accept(listen_fd, reinterpret_cast<sockaddr*>(&client_addr), &client_len);
+        if (client_fd < 0) {
+            perror("accept");
+            continue;
+        }
+
+        handleClient(client_fd);
+        net::closeFd(client_fd);
+    }
+}
+
+std::uint16_t parsePort(int argc, char* argv[]) {
+    if (argc < 2) {
+        return 8080;
+    }
+    int port = std::atoi(argv[1]);
+    if (port <= 0 || port > 65535) {
+        throw std::runtime_error("port must be in range 1-65535");
+    }
+    return static_cast<std::uint16_t>(port);
+}
+
+}  // namespace
+
+int main(int argc, char* argv[]) {
+    try {
+        std::uint16_t port = parsePort(argc, argv);
+        int listen_fd = net::createListenSocket(port);
+
+        std::cout << "CppSearchServer listening on 0.0.0.0:" << port << '\n';
+        serveWithEventLoop(listen_fd);
+
+        net::closeFd(listen_fd);
+        return 0;
+    } catch (const std::exception& ex) {
+        std::cerr << "fatal: " << ex.what() << '\n';
+        return 1;
+    }
+}
