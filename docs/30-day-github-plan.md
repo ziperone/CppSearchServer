@@ -628,6 +628,25 @@ For each day:
 5. Write local learning notes.
 6. End with a short self-check.
 
+## GitHub Language Rule
+
+Repository-facing text should use Chinese by default:
+
+- README uses Chinese.
+- GitHub project description uses Chinese.
+- commit messages use Chinese.
+- docs may use Chinese first; English technical terms can be kept when clearer.
+
+Suggested commit message style:
+
+```text
+初始化：创建 C++ 搜索服务项目骨架
+网络：接入 epoll EventLoop
+检索：实现文档加载与倒排索引
+缓存：加入 LRU 查询缓存
+文档：补充 benchmark 和面试复盘
+```
+
 ## Success Standard
 
 This 30-day version is successful if:
