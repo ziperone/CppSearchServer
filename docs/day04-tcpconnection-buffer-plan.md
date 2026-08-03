@@ -99,3 +99,9 @@
 - `input_buffer_` 保存尚未被 HTTP 解析器消费的请求字节；`output_buffer_` 保存尚未写入内核发送缓冲区的响应字节。
 - `recv` 的 `EAGAIN` 表示接收缓冲区当前为空，等待客户端未来发送字节并触发 `EPOLLIN`；`send` 的 `EAGAIN` 表示发送缓冲区当前没有空间，保留输出 Buffer 并临时关注 `EPOLLOUT`。
 - `recv == 0` 只说明对端不再发送，不能无条件关闭整个连接。若已有完整请求，服务器仍应生成并发送响应；响应已生成时由 `handleWrite` 继续发送，输出 Buffer 清空后再关闭；请求不完整时才直接关闭。
+
+## 掌握检查结论
+
+已能完整描述“多次 `EPOLLIN` 累积请求 -> 请求完整 -> 部分 `send` -> `EAGAIN` 开启 `EPOLLOUT` -> 继续发送”的事件链路。
+
+最后需要区分：当前单请求单响应短连接在输出 Buffer 清空后会 `disableWriting()` 并关闭 Channel/fd；只有未来 keep-alive 版本才会取消 `EPOLLOUT`、保留 fd 并继续只关注 `EPOLLIN`。
