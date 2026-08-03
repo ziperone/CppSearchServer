@@ -15,9 +15,12 @@ public:
     std::uint32_t events() const;
 
     void enableReading();
+    void enableWriting();
+    void disableWriting();
     void disableAll();
 
     void setReadCallback(EventCallback callback);
+    void setWriteCallback(EventCallback callback);
     void setErrorCallback(EventCallback callback);
 
     void handleEvent(std::uint32_t revents);
@@ -26,6 +29,7 @@ private:
     int fd_;
     std::uint32_t events_;
     EventCallback read_callback_;
+    EventCallback write_callback_;
     EventCallback error_callback_;
 };
 

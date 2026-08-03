@@ -2,6 +2,7 @@
 #include "net/Channel.h"
 #include "net/EventLoop.h"
 #include "net/Socket.h"
+#include "net/TcpConnection.h"
 
 #include <sys/socket.h>
 #include <unistd.h>
@@ -74,6 +75,10 @@ void handleClient(int client_fd) {
     writeAll(client_fd, response);
 }
 
+std::string handleRequest(std::string_view request) {
+    return route(extractPath(std::string(request)));
+}
+
 void serveWithEventLoop(int listen_fd) {
     if (net::setNonBlocking(listen_fd) < 0) {
         throw std::runtime_error(std::string("set listen fd nonblocking failed: ") + std::strerror(errno));
@@ -103,17 +108,13 @@ void serveWithEventLoop(int listen_fd) {
             }
 
             auto client_channel = std::make_shared<net::Channel>(client_fd);
-            client_channel->setReadCallback([&loop, client_fd] {
-                handleClient(client_fd);
-                loop.removeChannel(client_fd);
-                net::closeFd(client_fd);
-            });
-            client_channel->setErrorCallback([&loop, client_fd] {
-                loop.removeChannel(client_fd);
-                net::closeFd(client_fd);
-            });
-            client_channel->enableReading();
-            loop.addChannel(client_channel);
+            auto connection = std::make_shared<net::TcpConnection>(
+                loop,
+                client_fd,
+                [](std::string_view request) {
+                    return handleRequest(request);
+                });
+            connection->establish(client_channel);
         }
     });
     listen_channel->setErrorCallback([&loop, listen_fd] {

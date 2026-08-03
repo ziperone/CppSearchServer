@@ -20,6 +20,7 @@ public:
     EventLoop& operator=(const EventLoop&) = delete;
 
     void addChannel(const ChannelPtr& channel);
+    void updateChannel(const ChannelPtr& channel);
     void removeChannel(int fd);
 
     void loop();

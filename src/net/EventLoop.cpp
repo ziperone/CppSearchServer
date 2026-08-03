@@ -16,6 +16,10 @@ void EventLoop::addChannel(const ChannelPtr& channel) {
     epoller_.addFd(channel->fd(), channel->events());
 }
 
+void EventLoop::updateChannel(const ChannelPtr& channel) {
+    epoller_.modFd(channel->fd(), channel->events());
+}
+
 void EventLoop::removeChannel(int fd) {
     auto it = channels_.find(fd);
     if (it == channels_.end()) {
