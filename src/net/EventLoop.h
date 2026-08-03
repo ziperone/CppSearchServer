@@ -3,22 +3,24 @@
 #include "net/Epoller.h"
 
 #include <cstdint>
-#include <functional>
+#include <memory>
 #include <unordered_map>
 
 namespace net {
 
+class Channel;
+
 class EventLoop {
 public:
-    using EventCallback = std::function<void(int)>;
+    using ChannelPtr = std::shared_ptr<Channel>;
 
     explicit EventLoop(int max_events = 1024);
 
     EventLoop(const EventLoop&) = delete;
     EventLoop& operator=(const EventLoop&) = delete;
 
-    void addReadEvent(int fd, EventCallback callback);
-    void removeEvent(int fd);
+    void addChannel(const ChannelPtr& channel);
+    void removeChannel(int fd);
 
     void loop();
     void quit();
@@ -28,8 +30,7 @@ private:
 
     bool quit_;
     Epoller epoller_;
-    std::unordered_map<int, EventCallback> read_callbacks_;
+    std::unordered_map<int, ChannelPtr> channels_;
 };
 
 }  // namespace net
-

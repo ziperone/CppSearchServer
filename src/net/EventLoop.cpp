@@ -1,24 +1,28 @@
 #include "net/EventLoop.h"
 
-#include <sys/epoll.h>
+#include "net/Channel.h"
 
-#include <iostream>
+#include <sys/epoll.h>
 
 namespace net {
 
 EventLoop::EventLoop(int max_events)
     : quit_(false),
       epoller_(max_events),
-      read_callbacks_() {}
+      channels_() {}
 
-void EventLoop::addReadEvent(int fd, EventCallback callback) {
-    read_callbacks_[fd] = std::move(callback);
-    epoller_.addFd(fd, EPOLLIN);
+void EventLoop::addChannel(const ChannelPtr& channel) {
+    channels_[channel->fd()] = channel;
+    epoller_.addFd(channel->fd(), channel->events());
 }
 
-void EventLoop::removeEvent(int fd) {
+void EventLoop::removeChannel(int fd) {
+    auto it = channels_.find(fd);
+    if (it == channels_.end()) {
+        return;
+    }
     epoller_.delFd(fd);
-    read_callbacks_.erase(fd);
+    channels_.erase(it);
 }
 
 void EventLoop::loop() {
@@ -35,19 +39,13 @@ void EventLoop::quit() {
 }
 
 void EventLoop::dispatch(int fd, std::uint32_t events) {
-    if ((events & (EPOLLERR | EPOLLHUP)) != 0) {
-        std::cerr << "fd " << fd << " got epoll error/hangup event\n";
-        removeEvent(fd);
+    auto it = channels_.find(fd);
+    if (it == channels_.end()) {
         return;
     }
 
-    if ((events & EPOLLIN) != 0) {
-        auto it = read_callbacks_.find(fd);
-        if (it != read_callbacks_.end()) {
-            it->second(fd);
-        }
-    }
+    ChannelPtr channel = it->second;
+    channel->handleEvent(events);
 }
 
 }  // namespace net
-

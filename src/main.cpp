@@ -1,4 +1,5 @@
 #include "http/HttpResponse.h"
+#include "net/Channel.h"
 #include "net/EventLoop.h"
 #include "net/Socket.h"
 
@@ -11,6 +12,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -79,11 +81,12 @@ void serveWithEventLoop(int listen_fd) {
 
     net::EventLoop loop;
 
-    loop.addReadEvent(listen_fd, [&loop](int fd) {
+    auto listen_channel = std::make_shared<net::Channel>(listen_fd);
+    listen_channel->setReadCallback([&loop, listen_fd] {
         while (true) {
             sockaddr_storage client_addr {};
             socklen_t client_len = sizeof(client_addr);
-            int client_fd = ::accept(fd, reinterpret_cast<sockaddr*>(&client_addr), &client_len);
+            int client_fd = ::accept(listen_fd, reinterpret_cast<sockaddr*>(&client_addr), &client_len);
 
             if (client_fd < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -99,13 +102,26 @@ void serveWithEventLoop(int listen_fd) {
                 continue;
             }
 
-            loop.addReadEvent(client_fd, [&loop](int ready_fd) {
-                handleClient(ready_fd);
-                loop.removeEvent(ready_fd);
-                net::closeFd(ready_fd);
+            auto client_channel = std::make_shared<net::Channel>(client_fd);
+            client_channel->setReadCallback([&loop, client_fd] {
+                handleClient(client_fd);
+                loop.removeChannel(client_fd);
+                net::closeFd(client_fd);
             });
+            client_channel->setErrorCallback([&loop, client_fd] {
+                loop.removeChannel(client_fd);
+                net::closeFd(client_fd);
+            });
+            client_channel->enableReading();
+            loop.addChannel(client_channel);
         }
     });
+    listen_channel->setErrorCallback([&loop, listen_fd] {
+        loop.removeChannel(listen_fd);
+        loop.quit();
+    });
+    listen_channel->enableReading();
+    loop.addChannel(listen_channel);
 
     loop.loop();
 }
