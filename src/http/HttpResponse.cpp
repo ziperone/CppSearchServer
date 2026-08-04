@@ -31,5 +31,8 @@ std::string notFound() {
     return response("404 Not Found", "text/plain; charset=utf-8", "Not Found\n");
 }
 
-}  // namespace http
+std::string badRequest(const std::string& body) {
+    return response("400 Bad Request", "text/plain; charset=utf-8", body);
+}
 
+}  // namespace http

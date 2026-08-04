@@ -10,5 +10,6 @@ std::string okJson(const std::string& body);
 
 std::string notFound();
 
-}  // namespace http
+std::string badRequest(const std::string& body);
 
+}  // namespace http

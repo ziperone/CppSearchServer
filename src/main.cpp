@@ -1,4 +1,5 @@
 #include "http/HttpResponse.h"
+#include "http/HttpRequest.h"
 #include "net/Channel.h"
 #include "net/EventLoop.h"
 #include "net/Socket.h"
@@ -14,8 +15,10 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace {
 
@@ -76,7 +79,27 @@ void handleClient(int client_fd) {
 }
 
 std::string handleRequest(std::string_view request) {
-    return route(extractPath(std::string(request)));
+    std::optional<http::HttpRequest> parsed = http::parseRequest(request);
+    if (!parsed || parsed->method != "GET") {
+        return http::badRequest("Only complete GET requests are supported\n");
+    }
+
+    if (parsed->path == "/") {
+        return http::okText("Hello CppSearchServer\n");
+    }
+
+    if (parsed->path != "/search") {
+        return http::notFound();
+    }
+
+    const std::string* query = http::findQueryParam(*parsed, "q");
+    if (query == nullptr || query->empty()) {
+        return http::badRequest("The q query parameter is required\n");
+    }
+
+    return http::okJson(
+        "{\"message\":\"search endpoint is reserved for week 5\",\"query\":\""
+        + *query + "\"}\n");
 }
 
 void serveWithEventLoop(int listen_fd) {

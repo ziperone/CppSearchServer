@@ -18,6 +18,7 @@ add_executable(cpp_search_server
     src/net/Epoller.cpp
     src/net/Socket.cpp
     src/net/TcpConnection.cpp
+    src/http/HttpRequest.cpp
     src/http/HttpResponse.cpp
 )
 
