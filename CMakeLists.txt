@@ -20,6 +20,8 @@ add_executable(cpp_search_server
     src/net/TcpConnection.cpp
     src/http/HttpRequest.cpp
     src/http/HttpResponse.cpp
+    src/search/DocumentLoader.cpp
+    src/search/MarkdownChunker.cpp
 )
 
 target_include_directories(cpp_search_server PRIVATE src)
@@ -29,3 +31,41 @@ target_compile_options(cpp_search_server PRIVATE
     -Wextra
     -Wpedantic
 )
+
+include(CTest)
+
+if(BUILD_TESTING)
+    add_executable(markdown_chunker_test
+        src/search/MarkdownChunker.cpp
+        tests/MarkdownChunkerTest.cpp
+    )
+
+    target_include_directories(markdown_chunker_test PRIVATE src)
+
+    target_compile_options(markdown_chunker_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME markdown_chunker_test COMMAND markdown_chunker_test)
+
+    add_executable(document_loader_test
+        src/search/DocumentLoader.cpp
+        src/search/MarkdownChunker.cpp
+        tests/DocumentLoaderTest.cpp
+    )
+
+    target_include_directories(document_loader_test PRIVATE src)
+
+    target_compile_options(document_loader_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(
+        NAME document_loader_test
+        COMMAND document_loader_test ${CMAKE_SOURCE_DIR}/data/docs
+    )
+endif()
