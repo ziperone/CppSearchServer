@@ -25,7 +25,11 @@ int main() {
 
     const bool passed = expect(tokens == expected,
                                "technical tokens should be lowercased and preserved");
-    if (passed) {
+    const auto terms = search::analyzeTerms("EPOLL and C++ uses Redis");
+    const std::vector<std::string> expected_terms = {"epoll", "c++", "redis"};
+    const bool terms_passed = expect(terms == expected_terms,
+                                     "analysis should remove stop words but retain technical terms");
+    if (passed && terms_passed) {
         std::cout << "Tokenizer test passed\n";
         return 0;
     }

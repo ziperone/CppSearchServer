@@ -8,4 +8,6 @@ namespace search {
 
 std::vector<std::string> tokenize(std::string_view text);
 
+std::vector<std::string> analyzeTerms(std::string_view text);
+
 }  // namespace search

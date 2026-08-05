@@ -1,6 +1,7 @@
 #include "search/Tokenizer.h"
 
 #include <cctype>
+#include <unordered_set>
 #include <utility>
 
 namespace search {
@@ -9,6 +10,14 @@ namespace {
 bool isTokenCharacter(char character) {
     const unsigned char value = static_cast<unsigned char>(character);
     return std::isalnum(value) || character == '+' || character == '_';
+}
+
+const std::unordered_set<std::string>& stopWords() {
+    static const std::unordered_set<std::string> words = {
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+        "in", "is", "of", "on", "or", "the", "to", "uses", "with",
+    };
+    return words;
 }
 
 }  // namespace
@@ -35,6 +44,20 @@ std::vector<std::string> tokenize(std::string_view text) {
     }
 
     return tokens;
+}
+
+std::vector<std::string> analyzeTerms(std::string_view text) {
+    auto tokens = tokenize(text);
+    std::vector<std::string> terms;
+    terms.reserve(tokens.size());
+
+    for (auto& token : tokens) {
+        if (stopWords().find(token) == stopWords().end()) {
+            terms.push_back(std::move(token));
+        }
+    }
+
+    return terms;
 }
 
 }  // namespace search

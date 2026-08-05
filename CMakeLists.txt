@@ -23,6 +23,7 @@ add_executable(cpp_search_server
     src/search/DocumentLoader.cpp
     src/search/InvertedIndex.cpp
     src/search/MarkdownChunker.cpp
+    src/search/SearchService.cpp
     src/search/Tokenizer.cpp
 )
 
@@ -101,4 +102,21 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME inverted_index_test COMMAND inverted_index_test)
+
+    add_executable(search_service_test
+        src/search/InvertedIndex.cpp
+        src/search/SearchService.cpp
+        src/search/Tokenizer.cpp
+        tests/SearchServiceTest.cpp
+    )
+
+    target_include_directories(search_service_test PRIVATE src)
+
+    target_compile_options(search_service_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME search_service_test COMMAND search_service_test)
 endif()

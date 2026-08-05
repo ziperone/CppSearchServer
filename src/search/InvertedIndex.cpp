@@ -5,7 +5,7 @@
 namespace search {
 
 void InvertedIndex::addChunk(const DocumentChunk& chunk) {
-    const auto tokens = tokenize(chunk.raw_text);
+    const auto tokens = analyzeTerms(chunk.raw_text);
     std::unordered_map<std::string, std::size_t> term_frequencies;
     for (auto &token : tokens) {
         ++term_frequencies[token];
