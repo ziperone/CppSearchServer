@@ -48,6 +48,10 @@ score += log(1 + term_frequency) * idf
 
 服务只遍历查询词对应的 posting list，不扫描所有正文。候选结果超过 `top_k` 时，使用 `std::partial_sort` 只选出并排序前 K 个，避免对全部候选做完整排序；其成本约为 `O(candidate_count * log(top_k))`。
 
+对比完整 `std::sort` 的 `O(candidate_count * log(candidate_count))`，当候选数远大于 K 时，TopK 选择的排序成本更低。
+
+`std::partial_sort` 的语义是：前 K 个元素为全局最优且内部有序，后续元素的顺序不作要求。主流实现通常采用堆式 TopK 选择：维护容量为 K 的候选堆，扫描其余候选，仅当新候选优于当前第 K 名时才替换并调整堆，最后排序 K 个结果。C++ 标准不强制具体内部算法，但保证该函数的 TopK 语义与相应复杂度边界。
+
 ## 当前边界
 
 - 使用 OR 召回加覆盖度排序，不提供严格 AND 查询语法。
