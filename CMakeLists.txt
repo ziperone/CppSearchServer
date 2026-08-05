@@ -21,7 +21,9 @@ add_executable(cpp_search_server
     src/http/HttpRequest.cpp
     src/http/HttpResponse.cpp
     src/search/DocumentLoader.cpp
+    src/search/InvertedIndex.cpp
     src/search/MarkdownChunker.cpp
+    src/search/Tokenizer.cpp
 )
 
 target_include_directories(cpp_search_server PRIVATE src)
@@ -68,4 +70,35 @@ if(BUILD_TESTING)
         NAME document_loader_test
         COMMAND document_loader_test ${CMAKE_SOURCE_DIR}/data/docs
     )
+
+    add_executable(tokenizer_test
+        src/search/Tokenizer.cpp
+        tests/TokenizerTest.cpp
+    )
+
+    target_include_directories(tokenizer_test PRIVATE src)
+
+    target_compile_options(tokenizer_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME tokenizer_test COMMAND tokenizer_test)
+
+    add_executable(inverted_index_test
+        src/search/InvertedIndex.cpp
+        src/search/Tokenizer.cpp
+        tests/InvertedIndexTest.cpp
+    )
+
+    target_include_directories(inverted_index_test PRIVATE src)
+
+    target_compile_options(inverted_index_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME inverted_index_test COMMAND inverted_index_test)
 endif()
