@@ -23,6 +23,7 @@ add_executable(cpp_search_server
     src/search/DocumentLoader.cpp
     src/search/InvertedIndex.cpp
     src/search/MarkdownChunker.cpp
+    src/search/SearchApplication.cpp
     src/search/SearchService.cpp
     src/search/Tokenizer.cpp
 )
@@ -119,4 +120,44 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME search_service_test COMMAND search_service_test)
+
+    add_executable(search_application_test
+        src/http/HttpRequest.cpp
+        src/http/HttpResponse.cpp
+        src/search/DocumentLoader.cpp
+        src/search/InvertedIndex.cpp
+        src/search/MarkdownChunker.cpp
+        src/search/SearchApplication.cpp
+        src/search/SearchService.cpp
+        src/search/Tokenizer.cpp
+        tests/SearchApplicationTest.cpp
+    )
+
+    target_include_directories(search_application_test PRIVATE src)
+
+    target_compile_options(search_application_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(
+        NAME search_application_test
+        COMMAND search_application_test ${CMAKE_SOURCE_DIR}/data/docs
+    )
+
+    add_executable(http_request_test
+        src/http/HttpRequest.cpp
+        tests/HttpRequestTest.cpp
+    )
+
+    target_include_directories(http_request_test PRIVATE src)
+
+    target_compile_options(http_request_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME http_request_test COMMAND http_request_test)
 endif()

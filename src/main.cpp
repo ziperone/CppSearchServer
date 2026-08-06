@@ -4,6 +4,7 @@
 #include "net/EventLoop.h"
 #include "net/Socket.h"
 #include "net/TcpConnection.h"
+#include "search/SearchApplication.h"
 
 #include <sys/socket.h>
 #include <unistd.h>
@@ -13,6 +14,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -78,31 +80,7 @@ void handleClient(int client_fd) {
     writeAll(client_fd, response);
 }
 
-std::string handleRequest(std::string_view request) {
-    std::optional<http::HttpRequest> parsed = http::parseRequest(request);
-    if (!parsed || parsed->method != "GET") {
-        return http::badRequest("Only complete GET requests are supported\n");
-    }
-
-    if (parsed->path == "/") {
-        return http::okText("Hello CppSearchServer\n");
-    }
-
-    if (parsed->path != "/search") {
-        return http::notFound();
-    }
-
-    const std::string* query = http::findQueryParam(*parsed, "q");
-    if (query == nullptr || query->empty()) {
-        return http::badRequest("The q query parameter is required\n");
-    }
-
-    return http::okJson(
-        "{\"message\":\"search endpoint is reserved for week 5\",\"query\":\""
-        + *query + "\"}\n");
-}
-
-void serveWithEventLoop(int listen_fd) {
+void serveWithEventLoop(int listen_fd, net::TcpConnection::RequestHandler request_handler) {
     if (net::setNonBlocking(listen_fd) < 0) {
         throw std::runtime_error(std::string("set listen fd nonblocking failed: ") + std::strerror(errno));
     }
@@ -110,7 +88,7 @@ void serveWithEventLoop(int listen_fd) {
     net::EventLoop loop;
 
     auto listen_channel = std::make_shared<net::Channel>(listen_fd);
-    listen_channel->setReadCallback([&loop, listen_fd] {
+    listen_channel->setReadCallback([&loop, listen_fd, request_handler] {
         while (true) {
             sockaddr_storage client_addr {};
             socklen_t client_len = sizeof(client_addr);
@@ -134,9 +112,7 @@ void serveWithEventLoop(int listen_fd) {
             auto connection = std::make_shared<net::TcpConnection>(
                 loop,
                 client_fd,
-                [](std::string_view request) {
-                    return handleRequest(request);
-                });
+                request_handler);
             connection->establish(client_channel);
         }
     });
@@ -176,15 +152,25 @@ std::uint16_t parsePort(int argc, char* argv[]) {
     return static_cast<std::uint16_t>(port);
 }
 
+std::filesystem::path parseDocumentsRoot(int argc, char* argv[]) {
+    if (argc < 3) {
+        return "data/docs";
+    }
+    return argv[2];
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
     try {
         std::uint16_t port = parsePort(argc, argv);
+        search::SearchApplication application(parseDocumentsRoot(argc, argv));
         int listen_fd = net::createListenSocket(port);
 
         std::cout << "CppSearchServer listening on 0.0.0.0:" << port << '\n';
-        serveWithEventLoop(listen_fd);
+        serveWithEventLoop(listen_fd, [&application](std::string_view request) {
+            return application.handleRequest(request);
+        });
 
         net::closeFd(listen_fd);
         return 0;

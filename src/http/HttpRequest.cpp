@@ -1,28 +1,80 @@
 #include "http/HttpRequest.h"
 
+#include <cctype>
+
 namespace {
 
-void parseQueryString(std::string_view query,
+int hexValue(char character) {
+    if (character >= '0' && character <= '9') {
+        return character - '0';
+    }
+    if (character >= 'a' && character <= 'f') {
+        return character - 'a' + 10;
+    }
+    if (character >= 'A' && character <= 'F') {
+        return character - 'A' + 10;
+    }
+    return -1;
+}
+
+std::optional<std::string> urlDecode(std::string_view encoded) {
+    std::string decoded;
+    decoded.reserve(encoded.size());
+
+    for (std::size_t index = 0; index < encoded.size(); ++index) {
+        const char character = encoded[index];
+        if (character == '+') {
+            decoded += ' ';
+            continue;
+        }
+        if (character != '%') {
+            decoded += character;
+            continue;
+        }
+        if (index + 2 >= encoded.size()) {
+            return std::nullopt;
+        }
+
+        const int high = hexValue(encoded[index + 1]);
+        const int low = hexValue(encoded[index + 2]);
+        if (high < 0 || low < 0) {
+            return std::nullopt;
+        }
+
+        decoded += static_cast<char>((high << 4) | low);
+        index += 2;
+    }
+
+    return decoded;
+}
+
+bool parseQueryString(std::string_view query,
                       std::unordered_map<std::string, std::string>& query_params) {
-    // Implement the loop that splits query by '&' and each item by '='.
     std::size_t cursor = 0;
-    while (cursor < query.size()){
-        std::size_t cursor_end = query.find("&",cursor);
-        if(cursor_end == std::string_view::npos){
+    while (cursor < query.size()) {
+        std::size_t cursor_end = query.find('&', cursor);
+        if (cursor_end == std::string_view::npos) {
             cursor_end = query.size();
         }
-        std::string_view item = query.substr(cursor,cursor_end-cursor);
-        std::size_t equal_pos = item.find("=");
-        if(equal_pos != std::string_view::npos && equal_pos != 0){
-            std::string key(item.substr(0,equal_pos));
-            std::string value(item.substr(equal_pos+1));
-            query_params.emplace(std::string(key),std::string(value));
+
+        const std::string_view item = query.substr(cursor, cursor_end - cursor);
+        const std::size_t equal_pos = item.find('=');
+        if (equal_pos != std::string_view::npos && equal_pos != 0) {
+            const auto key = urlDecode(item.substr(0, equal_pos));
+            const auto value = urlDecode(item.substr(equal_pos + 1));
+            if (!key || !value) {
+                return false;
+            }
+            query_params.emplace(*key, *value);
         }
-        if(cursor_end == query.size()){
+
+        if (cursor_end == query.size()) {
             break;
         }
         cursor = cursor_end + 1;
     }
+
+    return true;
 }
 
 }  // namespace
@@ -59,7 +111,9 @@ std::optional<HttpRequest> parseRequest(std::string_view raw_request) {
     }
 
     request.path = target.substr(0, query_start);
-    parseQueryString(target.substr(query_start + 1), request.query_params);
+    if (!parseQueryString(target.substr(query_start + 1), request.query_params)) {
+        return std::nullopt;
+    }
     return request;
 }
 
