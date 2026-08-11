@@ -10,7 +10,7 @@ std::string response(const std::string& status,
     return "HTTP/1.1 " + status + "\r\n"
         + "Content-Type: " + content_type + "\r\n"
         + "Content-Length: " + std::to_string(body.size()) + "\r\n"
-        + "Connection: close\r\n"
+        + "Connection: keep-alive\r\n"
         + "\r\n"
         + body;
 }

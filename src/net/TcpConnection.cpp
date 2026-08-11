@@ -19,7 +19,8 @@ TcpConnection::TcpConnection(EventLoop& loop, int fd, RequestHandler request_han
       input_buffer_(),
       output_buffer_(),
       request_handler_(std::move(request_handler)),
-      response_ready_(false) {}
+      response_ready_(false),
+      peer_closed_(false) {}
 
 void TcpConnection::establish(const std::shared_ptr<Channel>& channel) {
     channel_ = channel;
@@ -50,14 +51,8 @@ void TcpConnection::handleRead() {
         }
 
         if (n == 0) {
-            if(!response_ready_){
-                if(hasCompleteRequest()){
-                    processRequest();
-                }else{
-                    close();
-                }
-            }
-            return;
+            peer_closed_ = true;
+            break;
         }
 
         if (errno == EINTR) {
@@ -74,33 +69,51 @@ void TcpConnection::handleRead() {
 
     if (!response_ready_ && hasCompleteRequest()) {
         processRequest();
+        handleWrite();
+        return;
+    }
+
+    if (peer_closed_ && !response_ready_) {
+        close();
     }
 }
 
 void TcpConnection::handleWrite() {
-    while (!output_buffer_.empty()) {
-        std::string_view output = output_buffer_.peek();
-        ssize_t n = ::send(fd_, output.data(), output.size(), 0);
-        if (n > 0) {
-            output_buffer_.retrieve(static_cast<std::size_t>(n));
-            continue;
-        }
+    while (true) {
+        while (!output_buffer_.empty()) {
+            std::string_view output = output_buffer_.peek();
+            ssize_t n = ::send(fd_, output.data(), output.size(), 0);
+            if (n > 0) {
+                output_buffer_.retrieve(static_cast<std::size_t>(n));
+                continue;
+            }
 
-        if (n < 0 && errno == EINTR) {
-            continue;
-        }
+            if (n < 0 && errno == EINTR) {
+                continue;
+            }
 
-        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            enableWriting();
+            if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                enableWriting();
+                return;
+            }
+
+            close();
             return;
         }
 
-        close();
+        disableWriting();
+        response_ready_ = false;
+
+        if (hasCompleteRequest()) {
+            processRequest();
+            continue;
+        }
+
+        if (peer_closed_) {
+            close();
+        }
         return;
     }
-
-    disableWriting();
-    close();
 }
 
 void TcpConnection::handleError() {
@@ -150,7 +163,6 @@ void TcpConnection::processRequest() {
     std::string response = request_handler_(request);
     output_buffer_.append(response);
     response_ready_ = true;
-    handleWrite();
 }
 
 }  // namespace net

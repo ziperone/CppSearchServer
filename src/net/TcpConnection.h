@@ -38,6 +38,7 @@ private:
     Buffer output_buffer_;
     RequestHandler request_handler_;
     bool response_ready_;
+    bool peer_closed_;
 };
 
 }  // namespace net
