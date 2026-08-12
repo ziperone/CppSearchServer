@@ -11,11 +11,16 @@
 
 namespace search {
 
+struct ApplicationResponse {
+    std::string response;
+    bool close_after_response = false;
+};
+
 class SearchApplication {
 public:
     explicit SearchApplication(const std::filesystem::path& documents_root);
 
-    std::string handleRequest(std::string_view request) const;
+    ApplicationResponse handleRequest(std::string_view request) const;
 
 private:
     std::vector<DocumentChunk> chunks_;

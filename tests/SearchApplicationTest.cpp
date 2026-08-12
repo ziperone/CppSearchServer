@@ -23,31 +23,37 @@ int main(int argc, char* argv[]) {
     }
 
     const search::SearchApplication application(argv[1]);
-    const std::string found = application.handleRequest(
+    const search::ApplicationResponse found = application.handleRequest(
         "GET /search?q=epoll HTTP/1.1\r\nHost: localhost\r\n\r\n");
-    const std::string multi_term = application.handleRequest(
+    const search::ApplicationResponse multi_term = application.handleRequest(
         "GET /search?q=epoll%20reactor HTTP/1.1\r\nHost: localhost\r\n\r\n");
-    const std::string missing = application.handleRequest(
+    const search::ApplicationResponse missing = application.handleRequest(
         "GET /search?q=not_exist_term HTTP/1.1\r\nHost: localhost\r\n\r\n");
-    const std::string invalid = application.handleRequest(
+    const search::ApplicationResponse invalid = application.handleRequest(
         "GET /search HTTP/1.1\r\nHost: localhost\r\n\r\n");
-    const std::string malformed = application.handleRequest(
+    const search::ApplicationResponse malformed = application.handleRequest(
         "GET /search?q=bad%2 HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    const search::ApplicationResponse close_after_response = application.handleRequest(
+        "GET /search?q=epoll HTTP/1.1\r\nConnection: close\r\n\r\n");
 
     const bool passed =
-        expect(found.find("HTTP/1.1 200 OK") == 0, "a matching query should return 200") &&
-        expect(found.find("\"heading_path\":\"CppSearchServer > Network model\"") != std::string::npos,
+        expect(found.response.find("HTTP/1.1 200 OK") == 0, "a matching query should return 200") &&
+        expect(found.response.find("\"heading_path\":\"CppSearchServer > Network model\"") != std::string::npos,
                "a matching query should contain a real document chunk") &&
-        expect(multi_term.find("\"query\":\"epoll reactor\"") != std::string::npos,
+        expect(multi_term.response.find("\"query\":\"epoll reactor\"") != std::string::npos,
                "percent-encoded query terms should be decoded before searching") &&
-        expect(multi_term.find("\"matched_terms\":2") != std::string::npos,
+        expect(multi_term.response.find("\"matched_terms\":2") != std::string::npos,
                "decoded multi-term query should use the real search terms") &&
-        expect(missing.find("\"results\":[]") != std::string::npos,
+        expect(missing.response.find("\"results\":[]") != std::string::npos,
                "a missing term should return an empty JSON result array") &&
-        expect(invalid.find("HTTP/1.1 400 Bad Request") == 0,
+        expect(invalid.response.find("HTTP/1.1 400 Bad Request") == 0,
                "a request without q should return 400") &&
-        expect(malformed.find("HTTP/1.1 400 Bad Request") == 0,
-               "malformed URL encoding should return 400");
+        expect(malformed.response.find("HTTP/1.1 400 Bad Request") == 0,
+               "malformed URL encoding should return 400") &&
+        expect(close_after_response.close_after_response,
+               "Connection close should request a close after this response") &&
+        expect(close_after_response.response.find("Connection: close\r\n") != std::string::npos,
+               "a close-after-response decision should be reflected in the HTTP response");
 
     if (passed) {
         std::cout << "SearchApplication test passed\n";

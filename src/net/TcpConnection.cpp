@@ -20,6 +20,7 @@ TcpConnection::TcpConnection(EventLoop& loop, int fd, RequestHandler request_han
       output_buffer_(),
       request_handler_(std::move(request_handler)),
       response_ready_(false),
+      close_after_response_(false),
       peer_closed_(false) {}
 
 void TcpConnection::establish(const std::shared_ptr<Channel>& channel) {
@@ -104,6 +105,11 @@ void TcpConnection::handleWrite() {
         disableWriting();
         response_ready_ = false;
 
+        if (close_after_response_) {
+            close();
+            return;
+        }
+
         if (hasCompleteRequest()) {
             processRequest();
             continue;
@@ -160,8 +166,9 @@ void TcpConnection::processRequest() {
     std::string request(input.substr(0, request_end));
     input_buffer_.retrieve(request_end);
 
-    std::string response = request_handler_(request);
-    output_buffer_.append(response);
+    ResponseResult result = request_handler_(request);
+    output_buffer_.append(result.response);
+    close_after_response_ = result.close_after_response;
     response_ready_ = true;
 }
 

@@ -98,26 +98,30 @@ SearchApplication::SearchApplication(const std::filesystem::path& documents_root
     }
 }
 
-std::string SearchApplication::handleRequest(std::string_view request) const {
+ApplicationResponse SearchApplication::handleRequest(std::string_view request) const {
     const auto parsed = http::parseRequest(request);
     if (!parsed || parsed->method != "GET") {
-        return http::badRequest("Only complete GET requests are supported\n");
+        return {http::badRequest("Only complete GET requests are supported\n"), false};
     }
 
+    const bool close_after_response = http::shouldCloseConnection(*parsed);
+
     if (parsed->path == "/") {
-        return http::okText("Hello CppSearchServer\n");
+        return {http::okText("Hello CppSearchServer\n", close_after_response), close_after_response};
     }
 
     if (parsed->path != "/search") {
-        return http::notFound();
+        return {http::notFound(close_after_response), close_after_response};
     }
 
     const std::string* query = http::findQueryParam(*parsed, "q");
     if (query == nullptr || query->empty()) {
-        return http::badRequest("The q query parameter is required\n");
+        return {http::badRequest("The q query parameter is required\n", close_after_response),
+                close_after_response};
     }
 
-    return http::okJson(toJson(*query, search_service_.search(*query, 10)));
+    return {http::okJson(toJson(*query, search_service_.search(*query, 10)), close_after_response),
+            close_after_response};
 }
 
 }  // namespace search

@@ -14,7 +14,12 @@ class EventLoop;
 
 class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 public:
-    using RequestHandler = std::function<std::string(std::string_view)>;
+    struct ResponseResult {
+        std::string response;
+        bool close_after_response = false;
+    };
+
+    using RequestHandler = std::function<ResponseResult(std::string_view)>;
 
     TcpConnection(EventLoop& loop, int fd, RequestHandler request_handler);
 
@@ -38,6 +43,7 @@ private:
     Buffer output_buffer_;
     RequestHandler request_handler_;
     bool response_ready_;
+    bool close_after_response_;
     bool peer_closed_;
 };
 

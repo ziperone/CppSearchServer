@@ -169,7 +169,10 @@ int main(int argc, char* argv[]) {
 
         std::cout << "CppSearchServer listening on 0.0.0.0:" << port << '\n';
         serveWithEventLoop(listen_fd, [&application](std::string_view request) {
-            return application.handleRequest(request);
+            const search::ApplicationResponse application_response = application.handleRequest(request);
+            return net::TcpConnection::ResponseResult{
+                std::move(application_response.response),
+                application_response.close_after_response};
         });
 
         net::closeFd(listen_fd);
