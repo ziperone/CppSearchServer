@@ -2,6 +2,8 @@
 
 #include "net/Buffer.h"
 
+#include <chrono>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -21,7 +23,10 @@ public:
 
     using RequestHandler = std::function<ResponseResult(std::string_view)>;
 
-    TcpConnection(EventLoop& loop, int fd, RequestHandler request_handler);
+    TcpConnection(EventLoop& loop,
+                  int fd,
+                  RequestHandler request_handler,
+                  std::chrono::milliseconds idle_timeout = std::chrono::seconds(60));
 
     void establish(const std::shared_ptr<Channel>& channel);
 
@@ -32,8 +37,12 @@ private:
     void close();
     void enableWriting();
     void disableWriting();
+    void markActivity();
+    void scheduleIdleCheck(std::chrono::steady_clock::time_point expires_at);
+    void closeIfIdle(std::uint64_t expected_generation);
 
     bool hasCompleteRequest() const;
+    bool isIdle() const;
     void processRequest();
 
     EventLoop& loop_;
@@ -45,6 +54,9 @@ private:
     bool response_ready_;
     bool close_after_response_;
     bool peer_closed_;
+    std::chrono::milliseconds idle_timeout_;
+    std::chrono::steady_clock::time_point last_activity_at_;
+    std::uint64_t idle_generation_;
 };
 
 }  // namespace net

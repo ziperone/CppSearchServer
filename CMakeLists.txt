@@ -17,6 +17,7 @@ add_executable(cpp_search_server
     src/net/EventLoop.cpp
     src/net/Epoller.cpp
     src/net/Socket.cpp
+    src/net/TimerQueue.cpp
     src/net/TcpConnection.cpp
     src/http/HttpRequest.cpp
     src/http/HttpResponse.cpp
@@ -160,4 +161,79 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME http_request_test COMMAND http_request_test)
+
+    add_executable(timer_queue_test
+        src/net/TimerQueue.cpp
+        tests/TimerQueueTest.cpp
+    )
+
+    target_include_directories(timer_queue_test PRIVATE src)
+
+    target_compile_options(timer_queue_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME timer_queue_test COMMAND timer_queue_test)
+
+    add_executable(event_loop_timer_test
+        src/net/Channel.cpp
+        src/net/Epoller.cpp
+        src/net/EventLoop.cpp
+        src/net/TimerQueue.cpp
+        tests/EventLoopTimerTest.cpp
+    )
+
+    target_include_directories(event_loop_timer_test PRIVATE src)
+
+    target_compile_options(event_loop_timer_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME event_loop_timer_test COMMAND event_loop_timer_test)
+
+    add_executable(tcp_connection_idle_timeout_test
+        src/net/Buffer.cpp
+        src/net/Channel.cpp
+        src/net/Epoller.cpp
+        src/net/EventLoop.cpp
+        src/net/Socket.cpp
+        src/net/TimerQueue.cpp
+        src/net/TcpConnection.cpp
+        tests/TcpConnectionIdleTimeoutTest.cpp
+    )
+
+    target_include_directories(tcp_connection_idle_timeout_test PRIVATE src)
+
+    target_compile_options(tcp_connection_idle_timeout_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME tcp_connection_idle_timeout_test COMMAND tcp_connection_idle_timeout_test)
+
+    add_executable(tcp_connection_idle_refresh_test
+        src/net/Buffer.cpp
+        src/net/Channel.cpp
+        src/net/Epoller.cpp
+        src/net/EventLoop.cpp
+        src/net/Socket.cpp
+        src/net/TimerQueue.cpp
+        src/net/TcpConnection.cpp
+        tests/TcpConnectionIdleRefreshTest.cpp
+    )
+
+    target_include_directories(tcp_connection_idle_refresh_test PRIVATE src)
+
+    target_compile_options(tcp_connection_idle_refresh_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME tcp_connection_idle_refresh_test COMMAND tcp_connection_idle_refresh_test)
 endif()
