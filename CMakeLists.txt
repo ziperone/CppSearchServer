@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(CppSearchServer LANGUAGES CXX)
 
+find_package(Threads REQUIRED)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -19,6 +21,7 @@ add_executable(cpp_search_server
     src/net/Socket.cpp
     src/net/TimerQueue.cpp
     src/net/TcpConnection.cpp
+    src/concurrency/WorkerPool.cpp
     src/http/HttpRequest.cpp
     src/http/HttpResponse.cpp
     src/search/DocumentLoader.cpp
@@ -36,6 +39,8 @@ target_compile_options(cpp_search_server PRIVATE
     -Wextra
     -Wpedantic
 )
+
+target_link_libraries(cpp_search_server PRIVATE Threads::Threads)
 
 include(CTest)
 
@@ -212,6 +217,23 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME event_loop_task_queue_test COMMAND event_loop_task_queue_test)
+
+    add_executable(worker_pool_test
+        src/concurrency/WorkerPool.cpp
+        tests/WorkerPoolTest.cpp
+    )
+
+    target_include_directories(worker_pool_test PRIVATE src)
+
+    target_compile_options(worker_pool_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    target_link_libraries(worker_pool_test PRIVATE Threads::Threads)
+
+    add_test(NAME worker_pool_test COMMAND worker_pool_test)
 
     add_executable(tcp_connection_idle_timeout_test
         src/net/Buffer.cpp
