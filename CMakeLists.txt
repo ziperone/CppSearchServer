@@ -195,6 +195,24 @@ if(BUILD_TESTING)
 
     add_test(NAME event_loop_timer_test COMMAND event_loop_timer_test)
 
+    add_executable(event_loop_task_queue_test
+        src/net/Channel.cpp
+        src/net/Epoller.cpp
+        src/net/EventLoop.cpp
+        src/net/TimerQueue.cpp
+        tests/EventLoopTaskQueueTest.cpp
+    )
+
+    target_include_directories(event_loop_task_queue_test PRIVATE src)
+
+    target_compile_options(event_loop_task_queue_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME event_loop_task_queue_test COMMAND event_loop_task_queue_test)
+
     add_executable(tcp_connection_idle_timeout_test
         src/net/Buffer.cpp
         src/net/Channel.cpp
