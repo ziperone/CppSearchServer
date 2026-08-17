@@ -276,4 +276,28 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME tcp_connection_idle_refresh_test COMMAND tcp_connection_idle_refresh_test)
+
+    add_executable(tcp_connection_async_request_test
+        src/concurrency/WorkerPool.cpp
+        src/net/Buffer.cpp
+        src/net/Channel.cpp
+        src/net/Epoller.cpp
+        src/net/EventLoop.cpp
+        src/net/Socket.cpp
+        src/net/TimerQueue.cpp
+        src/net/TcpConnection.cpp
+        tests/TcpConnectionAsyncRequestTest.cpp
+    )
+
+    target_include_directories(tcp_connection_async_request_test PRIVATE src)
+
+    target_compile_options(tcp_connection_async_request_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    target_link_libraries(tcp_connection_async_request_test PRIVATE Threads::Threads)
+
+    add_test(NAME tcp_connection_async_request_test COMMAND tcp_connection_async_request_test)
 endif()

@@ -27,7 +27,9 @@ TcpConnection::TcpConnection(EventLoop& loop,
       peer_closed_(false),
       idle_timeout_(idle_timeout),
       last_activity_at_(),
-      idle_generation_(0) {}
+      idle_generation_(0),
+      processing_request_(false),
+      request_generation_(0) {}
 
 void TcpConnection::establish(const std::shared_ptr<Channel>& channel) {
     channel_ = channel;
@@ -83,13 +85,12 @@ void TcpConnection::handleRead() {
         markActivity();
     }
 
-    if (!response_ready_ && hasCompleteRequest()) {
+    if (!response_ready_ && !processing_request_ && hasCompleteRequest()) {
         processRequest();
-        handleWrite();
         return;
     }
 
-    if (peer_closed_ && !response_ready_) {
+    if (peer_closed_ && !response_ready_ && !processing_request_) {
         close();
     }
 }
@@ -131,9 +132,9 @@ void TcpConnection::handleWrite() {
             return;
         }
 
-        if (hasCompleteRequest()) {
+        if (!processing_request_ && hasCompleteRequest()) {
             processRequest();
-            continue;
+            return;
         }
 
         if (peer_closed_) {
@@ -222,8 +223,27 @@ bool TcpConnection::hasCompleteRequest() const {
 }
 
 bool TcpConnection::isIdle() const {
-    return input_buffer_.empty() && output_buffer_.empty() && !response_ready_;
+    return input_buffer_.empty() && output_buffer_.empty() && !response_ready_ && !processing_request_;
 }
+
+void TcpConnection::finishRequest(std::uint64_t request_id,ResponseResult result){
+    if(fd_ <0){
+        return;
+    }
+    if(!processing_request_){
+        return;
+    }
+    if(request_id != request_generation_){
+        return;
+    }
+    processing_request_ = false;
+    output_buffer_.append(result.response);
+    close_after_response_ = result.close_after_response;
+    response_ready_ = true;
+    handleWrite();
+}
+
+
 
 void TcpConnection::processRequest() {
     std::string_view input = input_buffer_.peek();
@@ -231,10 +251,24 @@ void TcpConnection::processRequest() {
     std::string request(input.substr(0, request_end));
     input_buffer_.retrieve(request_end);
 
-    ResponseResult result = request_handler_(request);
-    output_buffer_.append(result.response);
-    close_after_response_ = result.close_after_response;
-    response_ready_ = true;
+    processing_request_ = true;
+    const std::uint64_t request_id = ++request_generation_;
+    std::weak_ptr<TcpConnection> weak_self = weak_from_this();
+    request_handler_(std::move(request),[weak_self,request_id](ResponseResult result)mutable{
+        std::shared_ptr<TcpConnection> self = weak_self.lock();
+        if (!self) {
+            return;
+        }
+        self->loop_.queueInLoop(
+            [weak_self, request_id, result = std::move(result)]() mutable {
+                std::shared_ptr<TcpConnection> connection = weak_self.lock();
+                if (!connection) {
+                    return;
+                }
+                connection->finishRequest(request_id, std::move(result));
+            }
+        );
+    });
 }
 
 }  // namespace net

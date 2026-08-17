@@ -36,4 +36,11 @@ std::string badRequest(const std::string& body, bool close_connection) {
     return response("400 Bad Request", "text/plain; charset=utf-8", body, close_connection);
 }
 
+std::string internalServerError(bool close_connection) {
+    return response("500 Internal Server Error",
+                    "text/plain; charset=utf-8",
+                    "Internal Server Error\n",
+                    close_connection);
+}
+
 }  // namespace http

@@ -12,4 +12,6 @@ std::string notFound(bool close_connection = false);
 
 std::string badRequest(const std::string& body, bool close_connection = false);
 
+std::string internalServerError(bool close_connection = false);
+
 }  // namespace http

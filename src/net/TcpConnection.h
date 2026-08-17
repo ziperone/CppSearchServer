@@ -21,7 +21,9 @@ public:
         bool close_after_response = false;
     };
 
-    using RequestHandler = std::function<ResponseResult(std::string_view)>;
+    using ResponseCallback = std::function<void(ResponseResult)>;
+
+    using RequestHandler = std::function<void(std::string request, ResponseCallback complete)>;
 
     TcpConnection(EventLoop& loop,
                   int fd,
@@ -40,7 +42,7 @@ private:
     void markActivity();
     void scheduleIdleCheck(std::chrono::steady_clock::time_point expires_at);
     void closeIfIdle(std::uint64_t expected_generation);
-
+    void finishRequest(std::uint64_t request_id, ResponseResult result);
     bool hasCompleteRequest() const;
     bool isIdle() const;
     void processRequest();
@@ -57,6 +59,8 @@ private:
     std::chrono::milliseconds idle_timeout_;
     std::chrono::steady_clock::time_point last_activity_at_;
     std::uint64_t idle_generation_;
+    bool processing_request_;
+    std::uint64_t request_generation_;
 };
 
 }  // namespace net

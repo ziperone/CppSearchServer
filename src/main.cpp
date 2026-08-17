@@ -1,3 +1,4 @@
+#include "concurrency/WorkerPool.h"
 #include "http/HttpResponse.h"
 #include "http/HttpRequest.h"
 #include "net/Channel.h"
@@ -11,6 +12,7 @@
 
 #include <array>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -80,12 +82,33 @@ void handleClient(int client_fd) {
     writeAll(client_fd, response);
 }
 
-void serveWithEventLoop(int listen_fd, net::TcpConnection::RequestHandler request_handler) {
+void serveWithEventLoop(int listen_fd,
+                        search::SearchApplication& application,
+                        std::size_t worker_count) {
     if (net::setNonBlocking(listen_fd) < 0) {
         throw std::runtime_error(std::string("set listen fd nonblocking failed: ") + std::strerror(errno));
     }
 
     net::EventLoop loop;
+    concurrency::WorkerPool workers(worker_count);
+    net::TcpConnection::RequestHandler request_handler =
+        [&application, &workers](std::string request,
+                                 net::TcpConnection::ResponseCallback complete) mutable {
+            workers.submit([&application,
+                            request = std::move(request),
+                            complete = std::move(complete)]() mutable {
+                try {
+                    const search::ApplicationResponse application_response =
+                        application.handleRequest(request);
+                    complete({std::move(application_response.response),
+                              application_response.close_after_response});
+                } catch (const std::exception&) {
+                    complete({http::internalServerError(true), true});
+                } catch (...) {
+                    complete({http::internalServerError(true), true});
+                }
+            });
+        };
 
     auto listen_channel = std::make_shared<net::Channel>(listen_fd);
     listen_channel->setReadCallback([&loop, listen_fd, request_handler] {
@@ -159,6 +182,22 @@ std::filesystem::path parseDocumentsRoot(int argc, char* argv[]) {
     return argv[2];
 }
 
+std::size_t parseWorkerCount(int argc, char* argv[]) {
+    constexpr std::size_t kDefaultWorkerCount = 4;
+    constexpr unsigned long kMaxWorkerCount = 256;
+
+    if (argc < 4) {
+        return kDefaultWorkerCount;
+    }
+
+    char* end = nullptr;
+    const unsigned long worker_count = std::strtoul(argv[3], &end, 10);
+    if (end == argv[3] || *end != '\0' || worker_count == 0 || worker_count > kMaxWorkerCount) {
+        throw std::runtime_error("worker count must be in range 1-256");
+    }
+    return static_cast<std::size_t>(worker_count);
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -168,12 +207,7 @@ int main(int argc, char* argv[]) {
         int listen_fd = net::createListenSocket(port);
 
         std::cout << "CppSearchServer listening on 0.0.0.0:" << port << '\n';
-        serveWithEventLoop(listen_fd, [&application](std::string_view request) {
-            const search::ApplicationResponse application_response = application.handleRequest(request);
-            return net::TcpConnection::ResponseResult{
-                std::move(application_response.response),
-                application_response.close_after_response};
-        });
+        serveWithEventLoop(listen_fd, application, parseWorkerCount(argc, argv));
 
         net::closeFd(listen_fd);
         return 0;
