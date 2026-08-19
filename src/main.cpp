@@ -6,7 +6,7 @@
 #include "net/Socket.h"
 #include "net/TcpConnection.h"
 #include "search/SearchApplication.h"
-
+#include "net/EventLoopGroup.h"
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -84,12 +84,15 @@ void handleClient(int client_fd) {
 
 void serveWithEventLoop(int listen_fd,
                         search::SearchApplication& application,
-                        std::size_t worker_count) {
+                        std::size_t worker_count,
+                        std::size_t io_loop_count) {
     if (net::setNonBlocking(listen_fd) < 0) {
         throw std::runtime_error(std::string("set listen fd nonblocking failed: ") + std::strerror(errno));
     }
 
-    net::EventLoop loop;
+    net::EventLoop accept_loop;
+    net::EventLoopGroup io_loops(io_loop_count);
+    io_loops.start();
     concurrency::WorkerPool workers(worker_count);
     net::TcpConnection::RequestHandler request_handler =
         [&application, &workers](std::string request,
@@ -111,7 +114,7 @@ void serveWithEventLoop(int listen_fd,
         };
 
     auto listen_channel = std::make_shared<net::Channel>(listen_fd);
-    listen_channel->setReadCallback([&loop, listen_fd, request_handler] {
+    listen_channel->setReadCallback([&accept_loop, &io_loops, listen_fd, request_handler] {
         while (true) {
             sockaddr_storage client_addr {};
             socklen_t client_len = sizeof(client_addr);
@@ -130,23 +133,26 @@ void serveWithEventLoop(int listen_fd,
                 net::closeFd(client_fd);
                 continue;
             }
+            net::EventLoop* target_loop = &io_loops.nextLoop();
 
+            target_loop->queueInLoop([target_loop, client_fd, request_handler] {
             auto client_channel = std::make_shared<net::Channel>(client_fd);
             auto connection = std::make_shared<net::TcpConnection>(
-                loop,
+                *target_loop,
                 client_fd,
                 request_handler);
-            connection->establish(client_channel);
+                connection->establish(client_channel);
+            });
         }
     });
-    listen_channel->setErrorCallback([&loop, listen_fd] {
-        loop.removeChannel(listen_fd);
-        loop.quit();
+    listen_channel->setErrorCallback([&accept_loop, listen_fd] {
+        accept_loop.removeChannel(listen_fd);
+        accept_loop.quit();
     });
     listen_channel->enableReading();
-    loop.addChannel(listen_channel);
+    accept_loop.addChannel(listen_channel);
 
-    loop.loop();
+    accept_loop.loop();
 }
 
 [[maybe_unused]] void serveForever(int listen_fd) {
@@ -198,6 +204,24 @@ std::size_t parseWorkerCount(int argc, char* argv[]) {
     return static_cast<std::size_t>(worker_count);
 }
 
+std::size_t parseIoLoopCount(int argc, char* argv[]) {
+    constexpr std::size_t kDefaultIoLoopCount = 1;
+    constexpr unsigned long kMaxIoLoopCount = 64;
+
+    if (argc < 5) {
+        return kDefaultIoLoopCount;
+    }
+
+    char* end = nullptr;
+    const unsigned long IoLoop_count = std::strtoul(argv[4], &end, 10);
+    if (end == argv[4] || *end != '\0' || IoLoop_count == 0 || IoLoop_count > kMaxIoLoopCount) {
+        throw std::runtime_error("IoLoop count must be in range 1-64");
+    }
+    return static_cast<std::size_t>(IoLoop_count);
+}
+
+
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -207,7 +231,7 @@ int main(int argc, char* argv[]) {
         int listen_fd = net::createListenSocket(port);
 
         std::cout << "CppSearchServer listening on 0.0.0.0:" << port << '\n';
-        serveWithEventLoop(listen_fd, application, parseWorkerCount(argc, argv));
+        serveWithEventLoop(listen_fd, application, parseWorkerCount(argc, argv),parseIoLoopCount(argc, argv));
 
         net::closeFd(listen_fd);
         return 0;
