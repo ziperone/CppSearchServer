@@ -94,7 +94,7 @@ void EventLoop::queueInLoop(Functor task) {
 }
 
 void EventLoop::loop() {
-    while (!quit_) {
+    while (!quit_.load()) {
         const TimerQueue::TimePoint now = TimerQueue::Clock::now();
         const int timeout_ms = timer_queue_.millisecondsUntilNextTimer(now);
         std::vector<epoll_event> events = epoller_.wait(timeout_ms);
@@ -106,7 +106,8 @@ void EventLoop::loop() {
 }
 
 void EventLoop::quit() {
-    quit_ = true;
+    quit_.store(true);
+    wakeup();
 }
 
 void EventLoop::dispatch(int fd, std::uint32_t events) {

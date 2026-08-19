@@ -10,6 +10,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+#include <atomic>
 
 namespace net {
 
@@ -42,7 +43,7 @@ private:
     void wakeup();
     void handleWakeup();
 
-    bool quit_;
+    std::atomic<bool> quit_;
     Epoller epoller_;
     TimerQueue timer_queue_;
     std::unordered_map<int, ChannelPtr> channels_;
