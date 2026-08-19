@@ -21,6 +21,7 @@ add_executable(cpp_search_server
     src/net/Socket.cpp
     src/net/TimerQueue.cpp
     src/net/EventLoopThread.cpp
+    src/net/EventLoopGroup.cc
     src/net/TcpConnection.cpp
     src/concurrency/WorkerPool.cpp
     src/http/HttpRequest.cpp
@@ -239,6 +240,28 @@ if(BUILD_TESTING)
     target_link_libraries(event_loop_thread_test PRIVATE Threads::Threads)
 
     add_test(NAME event_loop_thread_test COMMAND event_loop_thread_test)
+
+    add_executable(event_loop_group_test
+        src/net/Channel.cpp
+        src/net/Epoller.cpp
+        src/net/EventLoop.cpp
+        src/net/EventLoopThread.cpp
+        src/net/EventLoopGroup.cc
+        src/net/TimerQueue.cpp
+        tests/EventLoopGroupTest.cpp
+    )
+
+    target_include_directories(event_loop_group_test PRIVATE src)
+
+    target_compile_options(event_loop_group_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    target_link_libraries(event_loop_group_test PRIVATE Threads::Threads)
+
+    add_test(NAME event_loop_group_test COMMAND event_loop_group_test)
 
     add_executable(worker_pool_test
         src/concurrency/WorkerPool.cpp
