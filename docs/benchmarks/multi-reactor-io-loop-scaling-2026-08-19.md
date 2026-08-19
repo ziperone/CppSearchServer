@@ -58,6 +58,27 @@
 
 搜索索引在启动时构建并常驻内存；压测期间无磁盘读写，说明请求热路径不受文件 I/O 限制。线程增加会扩大虚拟地址空间和栈预留，但当前实际 RSS 仍很低。
 
+## WorkerPool 扩展：固定 I/O=4
+
+在 I/O=4 的前提下，保持同一 Release 构建、查询与 `wrk -t4 -c256 -d30s --latency`，只改变 Worker 数量：
+
+| Worker | QPS | 平均时延 | P99 | 线程级 CPU 观察 |
+| ---: | ---: | ---: | ---: | --- |
+| 1 | 126,469.89 | 2.02 ms | 2.17 ms | 单 Worker 96.65%，4 个 I/O Loop 各约 38% |
+| 2 | 267,406.88 | 0.95 ms | 1.30 ms | 2 个 Worker 各约 96%，4 个 I/O Loop 各约 70% |
+| 4 | 361,966.06 | 0.69 ms | 0.97 ms | 4 个 Worker 各约 76%，4 个 I/O Loop 各约 93% |
+| 4（复测） | 379,215.76 | 0.66 ms | 0.98 ms | 未重复采样线程 CPU |
+
+Worker=4 的两次 QPS 相差约 4.8%，平均约 37.1 万 QPS；P99 稳定在约 0.98ms。
+
+解释：
+
+- Worker=1 时唯一 Worker 先饱和，所有子 I/O Loop 都有空闲时间等待检索任务完成；
+- Worker=2 时业务并行度增加，QPS 显著增长，但两个 Worker 又成为饱和点；
+- Worker=4 时 QPS 相对 Worker=2 再提高约 35%-42%，此时 Worker 未满核，而 4 个 I/O Loop 都接近 93%，限制再次转回连接 I/O 与回传路径。
+
+这说明 WorkerPool 与 Reactor 的线程数不能独立决定：一个层级扩容后，瓶颈会迁移到另一个层级，必须重新测量。
+
 ## 结论
 
 在 `c256 + Worker=2` 的高并发短检索负载下，多 Reactor 有明确收益：
@@ -65,10 +86,10 @@
 - I/O=2 相比 I/O=1：QPS `+67.4%`，P99 `-32.6%`；
 - I/O=4 相比 I/O=1：QPS `+99.5%`，P99 `-44.9%`；
 - I/O=4 相比 I/O=2：仍有约 `+19.2%` QPS，但收益递减；
-- 当前瓶颈已从单 I/O Loop 转移到两个 Worker 接近满载，不能继续只增加 I/O Loop。
-
-下一步应固定 `I/O=4`，重新扫描 `Worker=1/2/4`，比较 QPS、P99、线程 CPU、RSS；如果 Worker=4 无收益或退化，需要分析共享 WorkerPool 队列、eventfd 回传与调度成本，而不是盲目扩容。
+- 当前最佳已验证组合为 `I/O=4 + Worker=4`，约 37 万 QPS、P99 约 0.98ms；
+- Worker=4 后 I/O Loop 接近满核，若继续优化，应先用 `I/O=6/8 + Worker=4` 的小规模实验验证是否仍有收益，再决定是否保留更多 I/O 线程；
+- 更合理的工程停止点是记录当前组合与证据，转向缓存、持久化、观测与稳定性建设，而不是无止境追求单机峰值。
 
 ## 面试表达
 
-“我先用 `wrk + pidstat -t` 证明单 I/O EventLoop 在 c256 下接近单核；随后把连接按 round-robin 分给 2/4 个子 Reactor。在 Worker=2、同一请求与连接数下，QPS 从 13.4 万提升到 26.7 万，P99 从 2.36ms 降到 1.30ms。线程监控显示 4 个 I/O Loop 已不再满核，而两个 Worker 接近满核，因此我据此把下一步优化目标转向 WorkerPool，而不是继续无依据地增加 Reactor 数。”
+“我先用 `wrk + pidstat -t` 证明单 I/O EventLoop 在 c256 下接近单核；随后把连接按 round-robin 分给 2/4 个子 Reactor。在 Worker=2、同一请求与连接数下，QPS 从 13.4 万提升到 26.7 万，P99 从 2.36ms 降到 1.30ms。接着固定 I/O=4 扫描 Worker 数，Worker=4 时达到约 37 万 QPS、P99 约 0.98ms。每次扩容后我都用线程 CPU 判断新瓶颈：先是 Worker 饱和，增加 Worker 后又变为 I/O Loop 接近满核。”
