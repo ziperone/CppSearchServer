@@ -28,6 +28,7 @@ add_executable(cpp_search_server
     src/http/HttpResponse.cpp
     src/search/DocumentLoader.cpp
     src/search/InvertedIndex.cpp
+    src/search/LruCache.cc
     src/search/MarkdownChunker.cpp
     src/search/SearchApplication.cpp
     src/search/SearchService.cpp
@@ -111,6 +112,23 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME inverted_index_test COMMAND inverted_index_test)
+
+    add_executable(lru_cache_test
+        src/search/LruCache.cc
+        tests/LruCacheTest.cpp
+    )
+
+    target_include_directories(lru_cache_test PRIVATE src)
+
+    target_compile_options(lru_cache_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    target_link_libraries(lru_cache_test PRIVATE Threads::Threads)
+
+    add_test(NAME lru_cache_test COMMAND lru_cache_test)
 
     add_executable(search_service_test
         src/search/InvertedIndex.cpp
