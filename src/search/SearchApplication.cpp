@@ -4,13 +4,18 @@
 #include "http/HttpResponse.h"
 #include "search/DocumentLoader.h"
 
+#include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 
 namespace {
+constexpr std::size_t kSearchTopK = 10;
 
+std::string makeSearchCacheKey(std::string_view query) {
+    return "search-json:v1:top-k=" + std::to_string(kSearchTopK) + ":q=" + std::string(query);
+}
 std::string escapeJson(std::string_view value) {
     std::ostringstream escaped;
     for (const unsigned char character : value) {
@@ -88,7 +93,9 @@ std::string toJson(std::string_view query, const std::vector<search::SearchResul
 namespace search {
 
 SearchApplication::SearchApplication(const std::filesystem::path& documents_root)
-    : chunks_(loadDocuments(documents_root)), search_service_(chunks_, index_) {
+    : chunks_(loadDocuments(documents_root)),
+      search_service_(chunks_, index_),
+      search_cache_(512, std::chrono::seconds(60)) {
     if (!std::filesystem::is_directory(documents_root)) {
         throw std::runtime_error("documents root is not a directory: " + documents_root.string());
     }
@@ -120,8 +127,21 @@ ApplicationResponse SearchApplication::handleRequest(std::string_view request) c
                 close_after_response};
     }
 
-    return {http::okJson(toJson(*query, search_service_.search(*query, 10)), close_after_response),
+    const std::string cache_key = makeSearchCacheKey(*query);
+    if (const auto cached_json = search_cache_.get(cache_key)) {
+        return {http::okJson(*cached_json, close_after_response),
+                close_after_response};
+    }
+
+    std::string result_json =
+        toJson(*query, search_service_.search(*query, kSearchTopK));
+    search_cache_.put(cache_key, result_json);
+    return {http::okJson(result_json, close_after_response),
             close_after_response};
+}
+
+LruCache::Stats SearchApplication::cacheStats() const {
+    return search_cache_.stats();
 }
 
 }  // namespace search

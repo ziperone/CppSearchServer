@@ -5,16 +5,25 @@
 #include <cstddef>
 #include <optional>
 #include <chrono>
+#include <cstdint>
 #include <mutex>
 namespace search {
 
 class LruCache {
 public:
+    struct Stats {
+        std::uint64_t hits = 0;
+        std::uint64_t misses = 0;
+        std::uint64_t expirations = 0;
+        std::uint64_t evictions = 0;
+    };
+
     LruCache(std::size_t capacity,
              std::chrono::milliseconds ttl);
 
     std::optional<std::string> get(const std::string& key);
     void put(std::string key, std::string value);
+    Stats stats() const;
 
 private:
     struct Entry {
@@ -27,6 +36,7 @@ private:
     std::chrono::milliseconds ttl_;
     std::list<std::string> lru_keys_;
     std::unordered_map<std::string, Entry> entries_;
-    std::mutex mutex_;
+    Stats stats_;
+    mutable std::mutex mutex_;
 };
 }

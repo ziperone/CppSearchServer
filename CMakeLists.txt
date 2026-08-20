@@ -152,6 +152,7 @@ if(BUILD_TESTING)
         src/http/HttpResponse.cpp
         src/search/DocumentLoader.cpp
         src/search/InvertedIndex.cpp
+        src/search/LruCache.cc
         src/search/MarkdownChunker.cpp
         src/search/SearchApplication.cpp
         src/search/SearchService.cpp

@@ -35,6 +35,7 @@ int main(int argc, char* argv[]) {
         "GET /search?q=bad%2 HTTP/1.1\r\nHost: localhost\r\n\r\n");
     const search::ApplicationResponse close_after_response = application.handleRequest(
         "GET /search?q=epoll HTTP/1.1\r\nConnection: close\r\n\r\n");
+    const search::LruCache::Stats cache_stats = application.cacheStats();
 
     const bool passed =
         expect(found.response.find("HTTP/1.1 200 OK") == 0, "a matching query should return 200") &&
@@ -53,7 +54,9 @@ int main(int argc, char* argv[]) {
         expect(close_after_response.close_after_response,
                "Connection close should request a close after this response") &&
         expect(close_after_response.response.find("Connection: close\r\n") != std::string::npos,
-               "a close-after-response decision should be reflected in the HTTP response");
+               "a close-after-response decision should be reflected in the HTTP response") &&
+        expect(cache_stats.hits == 1 && cache_stats.misses == 3,
+               "repeated epoll query should hit JSON cache without caching connection headers");
 
     if (passed) {
         std::cout << "SearchApplication test passed\n";

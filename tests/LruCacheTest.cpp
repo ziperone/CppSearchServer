@@ -52,6 +52,17 @@ int main() {
     std::this_thread::sleep_for(20ms);
     const bool expired_entry_removed = !expiring_cache.get("temporary").has_value();
 
+    search::LruCache stats_cache(1, 10ms);
+    (void)stats_cache.get("missing");
+    stats_cache.put("first", "one");
+    (void)stats_cache.get("first");
+    stats_cache.put("second", "two");
+    std::this_thread::sleep_for(20ms);
+    (void)stats_cache.get("second");
+    const search::LruCache::Stats stats = stats_cache.stats();
+    const bool stats_are_correct =
+        stats.hits == 1 && stats.misses == 2 && stats.expirations == 1 && stats.evictions == 1;
+
     search::LruCache concurrent_cache(64, 1s);
     std::atomic<bool> concurrent_access_succeeded = true;
     std::vector<std::thread> writers;
@@ -73,7 +84,7 @@ int main() {
 
     if (!invalid_capacity_rejected || !invalid_ttl_rejected || !initial_hit ||
         !least_recently_used_evicted || !existing_value_updated || !expired_entry_removed ||
-        !concurrent_access_succeeded.load()) {
+        !stats_are_correct || !concurrent_access_succeeded.load()) {
         std::cerr << "LruCache test failed\n";
         return 1;
     }
