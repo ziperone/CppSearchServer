@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.16)
 project(CppSearchServer LANGUAGES CXX)
 
 find_package(Threads REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(HIREDIS REQUIRED IMPORTED_TARGET hiredis)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -30,6 +32,7 @@ add_executable(cpp_search_server
     src/search/InvertedIndex.cpp
     src/search/LruCache.cc
     src/search/MarkdownChunker.cpp
+    src/search/RedisClient.cc
     src/search/SearchApplication.cpp
     src/search/SearchService.cpp
     src/search/Tokenizer.cpp
@@ -43,7 +46,10 @@ target_compile_options(cpp_search_server PRIVATE
     -Wpedantic
 )
 
-target_link_libraries(cpp_search_server PRIVATE Threads::Threads)
+target_link_libraries(cpp_search_server PRIVATE
+    Threads::Threads
+    PkgConfig::HIREDIS
+)
 
 include(CTest)
 
@@ -172,6 +178,23 @@ if(BUILD_TESTING)
         NAME search_application_test
         COMMAND search_application_test ${CMAKE_SOURCE_DIR}/data/docs
     )
+
+    add_executable(redis_client_test
+        src/search/RedisClient.cc
+        tests/RedisClientTest.cpp
+    )
+
+    target_include_directories(redis_client_test PRIVATE src)
+
+    target_compile_options(redis_client_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    target_link_libraries(redis_client_test PRIVATE PkgConfig::HIREDIS)
+
+    add_test(NAME redis_client_test COMMAND redis_client_test)
 
     add_executable(http_request_test
         src/http/HttpRequest.cpp
