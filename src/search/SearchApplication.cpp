@@ -4,7 +4,6 @@
 #include "http/HttpResponse.h"
 #include "search/DocumentLoader.h"
 
-#include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
@@ -95,7 +94,7 @@ namespace search {
 SearchApplication::SearchApplication(const std::filesystem::path& documents_root)
     : chunks_(loadDocuments(documents_root)),
       search_service_(chunks_, index_),
-      search_cache_(512, std::chrono::seconds(60)) {
+      search_cache_(SearchCache::Config{}) {
     if (!std::filesystem::is_directory(documents_root)) {
         throw std::runtime_error("documents root is not a directory: " + documents_root.string());
     }
@@ -141,7 +140,7 @@ ApplicationResponse SearchApplication::handleRequest(std::string_view request) c
 }
 
 LruCache::Stats SearchApplication::cacheStats() const {
-    return search_cache_.stats();
+    return search_cache_.currentThreadLocalStats();
 }
 
 }  // namespace search

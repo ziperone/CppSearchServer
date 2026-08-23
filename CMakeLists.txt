@@ -33,6 +33,7 @@ add_executable(cpp_search_server
     src/search/LruCache.cc
     src/search/MarkdownChunker.cpp
     src/search/RedisClient.cc
+    src/search/SearchCache.cc
     src/search/SearchApplication.cpp
     src/search/SearchService.cpp
     src/search/Tokenizer.cpp
@@ -160,6 +161,8 @@ if(BUILD_TESTING)
         src/search/InvertedIndex.cpp
         src/search/LruCache.cc
         src/search/MarkdownChunker.cpp
+        src/search/RedisClient.cc
+        src/search/SearchCache.cc
         src/search/SearchApplication.cpp
         src/search/SearchService.cpp
         src/search/Tokenizer.cpp
@@ -173,6 +176,8 @@ if(BUILD_TESTING)
         -Wextra
         -Wpedantic
     )
+
+    target_link_libraries(search_application_test PRIVATE PkgConfig::HIREDIS)
 
     add_test(
         NAME search_application_test
@@ -195,6 +200,28 @@ if(BUILD_TESTING)
     target_link_libraries(redis_client_test PRIVATE PkgConfig::HIREDIS)
 
     add_test(NAME redis_client_test COMMAND redis_client_test)
+
+    add_executable(search_cache_test
+        src/search/LruCache.cc
+        src/search/RedisClient.cc
+        src/search/SearchCache.cc
+        tests/SearchCacheTest.cpp
+    )
+
+    target_include_directories(search_cache_test PRIVATE src)
+
+    target_compile_options(search_cache_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    target_link_libraries(search_cache_test PRIVATE
+        Threads::Threads
+        PkgConfig::HIREDIS
+    )
+
+    add_test(NAME search_cache_test COMMAND search_cache_test)
 
     add_executable(http_request_test
         src/http/HttpRequest.cpp

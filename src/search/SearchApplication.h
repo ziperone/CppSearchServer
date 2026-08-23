@@ -2,8 +2,8 @@
 
 #include "search/DocumentChunk.h"
 #include "search/InvertedIndex.h"
+#include "search/SearchCache.h"
 #include "search/SearchService.h"
-#include "search/LruCache.h"
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -27,7 +27,7 @@ private:
     std::vector<DocumentChunk> chunks_;
     InvertedIndex index_;
     SearchService search_service_;
-    mutable LruCache search_cache_;
+    mutable SearchCache search_cache_;
 };
 
 }  // namespace search
