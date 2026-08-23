@@ -8,6 +8,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace {
 constexpr std::size_t kSearchTopK = 10;
@@ -92,9 +93,13 @@ std::string toJson(std::string_view query, const std::vector<search::SearchResul
 namespace search {
 
 SearchApplication::SearchApplication(const std::filesystem::path& documents_root)
+    : SearchApplication(documents_root, SearchCache::Config{}) {}
+
+SearchApplication::SearchApplication(const std::filesystem::path& documents_root,
+                                     SearchCache::Config cache_config)
     : chunks_(loadDocuments(documents_root)),
       search_service_(chunks_, index_),
-      search_cache_(SearchCache::Config{}) {
+      search_cache_(std::move(cache_config)) {
     if (!std::filesystem::is_directory(documents_root)) {
         throw std::runtime_error("documents root is not a directory: " + documents_root.string());
     }

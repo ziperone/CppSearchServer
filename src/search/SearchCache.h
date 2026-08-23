@@ -13,7 +13,14 @@ namespace search {
 
 class SearchCache {
 public:
+    enum class Mode {
+        Disabled,
+        LocalOnly,
+        LocalAndRedis,
+    };
+
     struct Config {
+        Mode mode = Mode::LocalAndRedis;
         std::size_t local_capacity = 128;
         std::chrono::milliseconds local_ttl{10000};
         std::string redis_host = "127.0.0.1";

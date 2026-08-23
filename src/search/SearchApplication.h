@@ -19,6 +19,8 @@ struct ApplicationResponse {
 class SearchApplication {
 public:
     explicit SearchApplication(const std::filesystem::path& documents_root);
+    SearchApplication(const std::filesystem::path& documents_root,
+                      SearchCache::Config cache_config);
 
     ApplicationResponse handleRequest(std::string_view request) const;
     LruCache::Stats cacheStats() const;

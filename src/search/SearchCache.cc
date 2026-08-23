@@ -50,12 +50,20 @@ SearchCache::ThreadState& SearchCache::currentThreadState() const{
     return *inserted.first->second;
 }
 std::optional<std::string> SearchCache::get(std::string_view key) const{
+    if (config_.mode == Mode::Disabled) {
+        return std::nullopt;
+    }
+
     const std::string key_copy(key);
     ThreadState& state = currentThreadState();
     auto success_L1 = state.local_cache.get(key_copy);
     if(success_L1){
         return success_L1;
     }
+    if (config_.mode == Mode::LocalOnly) {
+        return std::nullopt;
+    }
+
     auto success_L2 = state.redis.get(key_copy);
     if(success_L2){
         state.local_cache.put(key_copy,*success_L2);
@@ -64,14 +72,23 @@ std::optional<std::string> SearchCache::get(std::string_view key) const{
 }
 
 void SearchCache::put(std::string_view key,std::string_view value) const{
+    if (config_.mode == Mode::Disabled) {
+        return;
+    }
+
     const std::string key_copy(key);
     const std::string value_copy(value);
     ThreadState& state = currentThreadState();
     state.local_cache.put(key_copy,value_copy);
-    state.redis.setEx(key_copy, value_copy, config_.redis_ttl);
+    if (config_.mode == Mode::LocalAndRedis) {
+        state.redis.setEx(key_copy, value_copy, config_.redis_ttl);
+    }
 }
 
 LruCache::Stats SearchCache::currentThreadLocalStats() const {
+    if (config_.mode == Mode::Disabled) {
+        return {};
+    }
     return currentThreadState().local_cache.stats();
 }
 

@@ -6,6 +6,7 @@
 #include "net/Socket.h"
 #include "net/TcpConnection.h"
 #include "search/SearchApplication.h"
+#include "search/SearchCache.h"
 #include "net/EventLoopGroup.h"
 #include <sys/socket.h>
 #include <unistd.h>
@@ -220,6 +221,25 @@ std::size_t parseIoLoopCount(int argc, char* argv[]) {
     return static_cast<std::size_t>(IoLoop_count);
 }
 
+search::SearchCache::Config parseCacheConfig(int argc, char* argv[]) {
+    search::SearchCache::Config config;
+    if (argc < 6) {
+        return config;
+    }
+
+    const std::string_view mode = argv[5];
+    if (mode == "none") {
+        config.mode = search::SearchCache::Mode::Disabled;
+    } else if (mode == "l1") {
+        config.mode = search::SearchCache::Mode::LocalOnly;
+    } else if (mode == "l1-redis") {
+        config.mode = search::SearchCache::Mode::LocalAndRedis;
+    } else {
+        throw std::runtime_error("cache mode must be one of: none, l1, l1-redis");
+    }
+    return config;
+}
+
 
 
 }  // namespace
@@ -227,7 +247,8 @@ std::size_t parseIoLoopCount(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
     try {
         std::uint16_t port = parsePort(argc, argv);
-        search::SearchApplication application(parseDocumentsRoot(argc, argv));
+        search::SearchApplication application(
+            parseDocumentsRoot(argc, argv), parseCacheConfig(argc, argv));
         int listen_fd = net::createListenSocket(port);
 
         std::cout << "CppSearchServer listening on 0.0.0.0:" << port << '\n';

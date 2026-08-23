@@ -54,4 +54,25 @@ int main() {
     });
     unavailable_worker.join();
     assert(!unavailable_from_another_worker.has_value());
+
+    search::SearchCache::Config local_only_config = makeConfig();
+    local_only_config.mode = search::SearchCache::Mode::LocalOnly;
+    search::SearchCache local_only_cache(local_only_config);
+    const std::string local_only_key = uniqueKey("local-only");
+    local_only_cache.put(local_only_key, value);
+    assert(local_only_cache.get(local_only_key) == value);
+
+    std::optional<std::string> local_only_from_another_worker;
+    std::thread local_only_worker([&] {
+        local_only_from_another_worker = local_only_cache.get(local_only_key);
+    });
+    local_only_worker.join();
+    assert(!local_only_from_another_worker.has_value());
+
+    search::SearchCache::Config disabled_config = makeConfig();
+    disabled_config.mode = search::SearchCache::Mode::Disabled;
+    search::SearchCache disabled_cache(disabled_config);
+    const std::string disabled_key = uniqueKey("disabled");
+    disabled_cache.put(disabled_key, value);
+    assert(!disabled_cache.get(disabled_key).has_value());
 }
