@@ -223,6 +223,7 @@ std::size_t parseIoLoopCount(int argc, char* argv[]) {
 
 search::SearchCache::Config parseCacheConfig(int argc, char* argv[]) {
     search::SearchCache::Config config;
+    config.mode = search::SearchCache::Mode::Disabled;
     if (argc < 6) {
         return config;
     }
