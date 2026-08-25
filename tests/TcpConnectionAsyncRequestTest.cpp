@@ -3,6 +3,7 @@
 #include "net/EventLoop.h"
 #include "net/Socket.h"
 #include "net/TcpConnection.h"
+#include "observability/RequestLatency.h"
 
 #include <sys/socket.h>
 #include <unistd.h>
@@ -33,22 +34,32 @@ int main() {
 
     net::EventLoop loop;
     concurrency::WorkerPool workers(2);
+    auto latency_metrics = std::make_shared<observability::RequestLatency>(true);
     auto channel = std::make_shared<net::Channel>(sockets[0]);
     auto connection = std::make_shared<net::TcpConnection>(
         loop,
         sockets[0],
-        [&workers](std::string request, net::TcpConnection::ResponseCallback complete) {
-            workers.submit([request = std::move(request), complete = std::move(complete)]() mutable {
+        [&workers, latency_metrics](std::string request,
+                   net::TcpConnection::RequestTimingPtr timing,
+                   net::TcpConnection::ResponseCallback complete) {
+            workers.submit([latency_metrics,
+                            request = std::move(request),
+                            timing = std::move(timing),
+                            complete = std::move(complete)]() mutable {
+                latency_metrics->markWorkerStarted(timing);
                 if (request.find("/first") != std::string::npos) {
                     std::this_thread::sleep_for(30ms);
+                    latency_metrics->markWorkerFinished(timing);
                     complete({"first", false});
                     return;
                 }
 
+                latency_metrics->markWorkerFinished(timing);
                 complete({"second", true});
             });
         },
-        500ms);
+        500ms,
+        latency_metrics);
     connection->establish(channel);
 
     constexpr std::string_view requests =
@@ -83,6 +94,12 @@ int main() {
 
     if (received != "firstsecond") {
         std::cerr << "async response order test failed, received='" << received << "'\n";
+        return 1;
+    }
+
+    const std::string metrics = latency_metrics->snapshotJson();
+    if (metrics.find("\"completed_requests\":2") == std::string::npos) {
+        std::cerr << "async metrics test failed, metrics='" << metrics << "'\n";
         return 1;
     }
 

@@ -33,7 +33,9 @@ int main() {
     auto connection = std::make_shared<net::TcpConnection>(
         loop,
         sockets[0],
-        [](std::string, net::TcpConnection::ResponseCallback complete) {
+        [](std::string,
+           net::TcpConnection::RequestTimingPtr,
+           net::TcpConnection::ResponseCallback complete) {
             complete(net::TcpConnection::ResponseResult{"ok", false});
         },
         40ms);

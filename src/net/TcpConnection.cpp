@@ -3,6 +3,7 @@
 #include "net/Channel.h"
 #include "net/EventLoop.h"
 #include "net/Socket.h"
+#include "observability/RequestLatency.h"
 
 #include <sys/socket.h>
 
@@ -15,7 +16,8 @@ namespace net {
 TcpConnection::TcpConnection(EventLoop& loop,
                              int fd,
                              RequestHandler request_handler,
-                             std::chrono::milliseconds idle_timeout)
+                             std::chrono::milliseconds idle_timeout,
+                             std::shared_ptr<observability::RequestLatency> latency_metrics)
     : loop_(loop),
       fd_(fd),
       channel_(),
@@ -29,7 +31,9 @@ TcpConnection::TcpConnection(EventLoop& loop,
       last_activity_at_(),
       idle_generation_(0),
       processing_request_(false),
-      request_generation_(0) {}
+      request_generation_(0),
+      latency_metrics_(std::move(latency_metrics)),
+      active_request_timing_() {}
 
 void TcpConnection::establish(const std::shared_ptr<Channel>& channel) {
     channel_ = channel;
@@ -103,6 +107,9 @@ void TcpConnection::handleWrite() {
             std::string_view output = output_buffer_.peek();
             ssize_t n = ::send(fd_, output.data(), output.size(), 0);
             if (n > 0) {
+                if (latency_metrics_ && active_request_timing_) {
+                    latency_metrics_->markWriteStarted(active_request_timing_);
+                }
                 output_buffer_.retrieve(static_cast<std::size_t>(n));
                 sent_data = true;
                 continue;
@@ -125,6 +132,10 @@ void TcpConnection::handleWrite() {
         }
 
         disableWriting();
+        if (latency_metrics_ && active_request_timing_) {
+            latency_metrics_->complete(active_request_timing_);
+        }
+        active_request_timing_.reset();
         response_ready_ = false;
 
         if (close_after_response_) {
@@ -226,7 +237,9 @@ bool TcpConnection::isIdle() const {
     return input_buffer_.empty() && output_buffer_.empty() && !response_ready_ && !processing_request_;
 }
 
-void TcpConnection::finishRequest(std::uint64_t request_id,ResponseResult result){
+void TcpConnection::finishRequest(std::uint64_t request_id,
+                                  RequestTimingPtr timing,
+                                  ResponseResult result) {
     if(fd_ <0){
         return;
     }
@@ -236,7 +249,11 @@ void TcpConnection::finishRequest(std::uint64_t request_id,ResponseResult result
     if(request_id != request_generation_){
         return;
     }
+    if (latency_metrics_) {
+        latency_metrics_->markReturnedToIo(timing);
+    }
     processing_request_ = false;
+    active_request_timing_ = std::move(timing);
     output_buffer_.append(result.response);
     close_after_response_ = result.close_after_response;
     response_ready_ = true;
@@ -253,22 +270,29 @@ void TcpConnection::processRequest() {
 
     processing_request_ = true;
     const std::uint64_t request_id = ++request_generation_;
+    RequestTimingPtr timing = latency_metrics_ ? latency_metrics_->beginRequest() : nullptr;
+    if (latency_metrics_) {
+        latency_metrics_->markQueued(timing);
+    }
     std::weak_ptr<TcpConnection> weak_self = weak_from_this();
-    request_handler_(std::move(request),[weak_self,request_id](ResponseResult result)mutable{
+    RequestTimingPtr handler_timing = timing;
+    ResponseCallback complete = [weak_self, request_id, timing = std::move(timing)](
+                                    ResponseResult result) mutable {
         std::shared_ptr<TcpConnection> self = weak_self.lock();
         if (!self) {
             return;
         }
         self->loop_.queueInLoop(
-            [weak_self, request_id, result = std::move(result)]() mutable {
+            [weak_self, request_id, timing = std::move(timing), result = std::move(result)]() mutable {
                 std::shared_ptr<TcpConnection> connection = weak_self.lock();
                 if (!connection) {
                     return;
                 }
-                connection->finishRequest(request_id, std::move(result));
+                connection->finishRequest(request_id, std::move(timing), std::move(result));
             }
         );
-    });
+    };
+    request_handler_(std::move(request), std::move(handler_timing), std::move(complete));
 }
 
 }  // namespace net

@@ -5,6 +5,7 @@
 #include "net/EventLoop.h"
 #include "net/Socket.h"
 #include "net/TcpConnection.h"
+#include "observability/RequestLatency.h"
 #include "search/SearchApplication.h"
 #include "search/SearchCache.h"
 #include "net/EventLoopGroup.h"
@@ -13,6 +14,7 @@
 
 #include <array>
 #include <cerrno>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -86,7 +88,8 @@ void handleClient(int client_fd) {
 void serveWithEventLoop(int listen_fd,
                         search::SearchApplication& application,
                         std::size_t worker_count,
-                        std::size_t io_loop_count) {
+                        std::size_t io_loop_count,
+                        bool latency_metrics_enabled) {
     if (net::setNonBlocking(listen_fd) < 0) {
         throw std::runtime_error(std::string("set listen fd nonblocking failed: ") + std::strerror(errno));
     }
@@ -95,27 +98,42 @@ void serveWithEventLoop(int listen_fd,
     net::EventLoopGroup io_loops(io_loop_count);
     io_loops.start();
     concurrency::WorkerPool workers(worker_count);
+    auto latency_metrics = std::make_shared<observability::RequestLatency>(latency_metrics_enabled);
     net::TcpConnection::RequestHandler request_handler =
-        [&application, &workers](std::string request,
-                                 net::TcpConnection::ResponseCallback complete) mutable {
-            workers.submit([&application,
+        [&application, &workers, latency_metrics](std::string request,
+                                                   net::TcpConnection::RequestTimingPtr timing,
+                                                   net::TcpConnection::ResponseCallback complete) mutable {
+            workers.submit([&application, latency_metrics,
                             request = std::move(request),
+                            timing = std::move(timing),
                             complete = std::move(complete)]() mutable {
+                latency_metrics->markWorkerStarted(timing);
                 try {
-                    const search::ApplicationResponse application_response =
-                        application.handleRequest(request);
+                    const auto parsed = http::parseRequest(request);
+                    search::ApplicationResponse application_response;
+                    if (parsed && parsed->method == "GET" && parsed->path == "/metrics") {
+                        const bool close_after_response = http::shouldCloseConnection(*parsed);
+                        application_response = {
+                            http::okJson(latency_metrics->snapshotJson(), close_after_response),
+                            close_after_response};
+                    } else {
+                        application_response = application.handleRequest(request);
+                    }
+                    latency_metrics->markWorkerFinished(timing);
                     complete({std::move(application_response.response),
                               application_response.close_after_response});
                 } catch (const std::exception&) {
+                    latency_metrics->markWorkerFinished(timing);
                     complete({http::internalServerError(true), true});
                 } catch (...) {
+                    latency_metrics->markWorkerFinished(timing);
                     complete({http::internalServerError(true), true});
                 }
             });
         };
 
     auto listen_channel = std::make_shared<net::Channel>(listen_fd);
-    listen_channel->setReadCallback([&accept_loop, &io_loops, listen_fd, request_handler] {
+    listen_channel->setReadCallback([&accept_loop, &io_loops, listen_fd, request_handler, latency_metrics] {
         while (true) {
             sockaddr_storage client_addr {};
             socklen_t client_len = sizeof(client_addr);
@@ -136,12 +154,14 @@ void serveWithEventLoop(int listen_fd,
             }
             net::EventLoop* target_loop = &io_loops.nextLoop();
 
-            target_loop->queueInLoop([target_loop, client_fd, request_handler] {
+            target_loop->queueInLoop([target_loop, client_fd, request_handler, latency_metrics] {
             auto client_channel = std::make_shared<net::Channel>(client_fd);
             auto connection = std::make_shared<net::TcpConnection>(
                 *target_loop,
                 client_fd,
-                request_handler);
+                request_handler,
+                std::chrono::seconds(60),
+                latency_metrics);
                 connection->establish(client_channel);
             });
         }
@@ -241,6 +261,21 @@ search::SearchCache::Config parseCacheConfig(int argc, char* argv[]) {
     return config;
 }
 
+bool parseLatencyMetricsEnabled(int argc, char* argv[]) {
+    if (argc < 7) {
+        return false;
+    }
+
+    const std::string_view mode = argv[6];
+    if (mode == "off") {
+        return false;
+    }
+    if (mode == "on") {
+        return true;
+    }
+    throw std::runtime_error("latency metrics must be one of: off, on");
+}
+
 
 
 }  // namespace
@@ -253,7 +288,11 @@ int main(int argc, char* argv[]) {
         int listen_fd = net::createListenSocket(port);
 
         std::cout << "CppSearchServer listening on 0.0.0.0:" << port << '\n';
-        serveWithEventLoop(listen_fd, application, parseWorkerCount(argc, argv),parseIoLoopCount(argc, argv));
+        serveWithEventLoop(listen_fd,
+                           application,
+                           parseWorkerCount(argc, argv),
+                           parseIoLoopCount(argc, argv),
+                           parseLatencyMetricsEnabled(argc, argv));
 
         net::closeFd(listen_fd);
         return 0;

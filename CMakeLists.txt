@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(CPP_SEARCH_ENABLE_PROFILING "Preserve frame pointers for perf call graphs" OFF)
+
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
@@ -25,6 +27,7 @@ add_executable(cpp_search_server
     src/net/EventLoopThread.cpp
     src/net/EventLoopGroup.cc
     src/net/TcpConnection.cpp
+    src/observability/RequestLatency.cpp
     src/concurrency/WorkerPool.cpp
     src/http/HttpRequest.cpp
     src/http/HttpResponse.cpp
@@ -46,6 +49,10 @@ target_compile_options(cpp_search_server PRIVATE
     -Wextra
     -Wpedantic
 )
+
+if(CPP_SEARCH_ENABLE_PROFILING)
+    target_compile_options(cpp_search_server PRIVATE -fno-omit-frame-pointer)
+endif()
 
 target_link_libraries(cpp_search_server PRIVATE
     Threads::Threads
@@ -349,6 +356,21 @@ if(BUILD_TESTING)
 
     add_test(NAME worker_pool_test COMMAND worker_pool_test)
 
+    add_executable(request_latency_test
+        src/observability/RequestLatency.cpp
+        tests/RequestLatencyTest.cpp
+    )
+
+    target_include_directories(request_latency_test PRIVATE src)
+
+    target_compile_options(request_latency_test PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+
+    add_test(NAME request_latency_test COMMAND request_latency_test)
+
     add_executable(tcp_connection_idle_timeout_test
         src/net/Buffer.cpp
         src/net/Channel.cpp
@@ -357,6 +379,7 @@ if(BUILD_TESTING)
         src/net/Socket.cpp
         src/net/TimerQueue.cpp
         src/net/TcpConnection.cpp
+        src/observability/RequestLatency.cpp
         tests/TcpConnectionIdleTimeoutTest.cpp
     )
 
@@ -378,6 +401,7 @@ if(BUILD_TESTING)
         src/net/Socket.cpp
         src/net/TimerQueue.cpp
         src/net/TcpConnection.cpp
+        src/observability/RequestLatency.cpp
         tests/TcpConnectionIdleRefreshTest.cpp
     )
 
@@ -400,6 +424,7 @@ if(BUILD_TESTING)
         src/net/Socket.cpp
         src/net/TimerQueue.cpp
         src/net/TcpConnection.cpp
+        src/observability/RequestLatency.cpp
         tests/TcpConnectionAsyncRequestTest.cpp
     )
 

@@ -32,7 +32,9 @@ int main() {
     auto connection = std::make_shared<net::TcpConnection>(
         loop,
         sockets[0],
-        [](std::string, net::TcpConnection::ResponseCallback) {
+        [](std::string,
+           net::TcpConnection::RequestTimingPtr,
+           net::TcpConnection::ResponseCallback) {
         },
         20ms);
     connection->establish(channel);

@@ -9,6 +9,11 @@
 #include <string>
 #include <string_view>
 
+namespace observability {
+class RequestLatency;
+struct RequestTiming;
+}  // namespace observability
+
 namespace net {
 
 class Channel;
@@ -22,13 +27,16 @@ public:
     };
 
     using ResponseCallback = std::function<void(ResponseResult)>;
-
-    using RequestHandler = std::function<void(std::string request, ResponseCallback complete)>;
+    using RequestTimingPtr = std::shared_ptr<observability::RequestTiming>;
+    using RequestHandler = std::function<void(std::string request,
+                                              RequestTimingPtr timing,
+                                              ResponseCallback complete)>;
 
     TcpConnection(EventLoop& loop,
                   int fd,
                   RequestHandler request_handler,
-                  std::chrono::milliseconds idle_timeout = std::chrono::seconds(60));
+                  std::chrono::milliseconds idle_timeout = std::chrono::seconds(60),
+                  std::shared_ptr<observability::RequestLatency> latency_metrics = nullptr);
 
     void establish(const std::shared_ptr<Channel>& channel);
 
@@ -42,7 +50,9 @@ private:
     void markActivity();
     void scheduleIdleCheck(std::chrono::steady_clock::time_point expires_at);
     void closeIfIdle(std::uint64_t expected_generation);
-    void finishRequest(std::uint64_t request_id, ResponseResult result);
+    void finishRequest(std::uint64_t request_id,
+                       RequestTimingPtr timing,
+                       ResponseResult result);
     bool hasCompleteRequest() const;
     bool isIdle() const;
     void processRequest();
@@ -61,6 +71,8 @@ private:
     std::uint64_t idle_generation_;
     bool processing_request_;
     std::uint64_t request_generation_;
+    std::shared_ptr<observability::RequestLatency> latency_metrics_;
+    RequestTimingPtr active_request_timing_;
 };
 
 }  // namespace net

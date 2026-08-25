@@ -58,8 +58,8 @@ ctest --test-dir build-ralease --output-on-failure
 启动服务：
 
 ```bash
-# <port> <documents_root> <workers> <io_loops> <cache_mode>
-./build-ralease/cpp_search_server 18085 data/docs 4 4 none
+# <port> <documents_root> <workers> <io_loops> <cache_mode> <metrics_mode>
+./build-ralease/cpp_search_server 18085 data/docs 4 4 none off
 
 curl "http://127.0.0.1:18085/search?q=epoll%20reactor"
 ```
@@ -72,11 +72,24 @@ l1        仅 Worker-local L1
 l1-redis  Worker-local L1 + Redis L2
 ```
 
+请求分阶段耗时指标默认关闭。诊断时将最后一个参数设为 `on`，再请求 `/metrics`：
+
+```bash
+./build-ralease/cpp_search_server 18085 data/docs 4 4 none on
+curl http://127.0.0.1:18085/metrics
+```
+
 ## 验证与文档
 
 ```bash
 # 三模式热点对照压测
 bash scripts/run_cache_benchmark.sh
+
+# 请求分阶段耗时诊断（指标模式，不用于与基准 QPS 直接比较）
+bash scripts/run_latency_breakdown.sh
+
+# perf CPU 采样（单独构建 RelWithDebInfo；需要系统允许 perf_event）
+bash scripts/profile_cpu.sh
 
 # 两实例共享 Redis L2 验证
 bash scripts/verify_redis_l2_cross_instance.sh
@@ -86,6 +99,7 @@ bash scripts/verify_redis_l2_cross_instance.sh
 - [Redis 缓存阶段验收](docs/phase-reviews/redis-cache-phase.md)
 - [多 Reactor 压测记录](docs/benchmarks/multi-reactor-io-loop-scaling-2026-08-19.md)
 - [WorkerPool 扩展实验](docs/benchmarks/worker-pool-baseline-2026-08-17.md)
+- [请求分阶段耗时诊断](docs/benchmarks/request-stage-latency-2026-08-25.md)
 - [学习日志](docs/learning-log/)
 
 ## 下一阶段

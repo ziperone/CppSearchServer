@@ -17,7 +17,7 @@
 - Worker-local RedisClient：`thread_local` 状态让每个 Worker 独占 L1 和 hiredis context；同步 Redis 只阻塞当前 Worker，绝不阻塞 EventLoop；
 - 两级缓存：Worker-local L1 -> Redis L2 -> 本地倒排索引，缓存故障 fail-open；
 - 三种运行模式：`none`、`l1`、`l1-redis`，可在同一 Release 二进制下做控制变量压测；
-- 真实 Redis 集成测试、跨线程 L2 测试、Redis 不可用降级测试，远端 Release 共 19/19 CTest 通过；
+- 真实 Redis 集成测试、跨线程 L2 测试、Redis 不可用降级测试，以及请求耗时指标测试，远端 Release 共 20/20 CTest 通过；
 - 双实例脚本验证：实例 A 回源后 `GET +2, SET +1`；实例 B 本地 L1 为空时 `GET +2, SET +0`。额外 GET 来自两个 curl 被不同 Worker 接手，符合 Worker-local L1 的设计。
 
 ## 数据模型结论
