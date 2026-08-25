@@ -43,7 +43,7 @@ HTTP client
 
 当前小型内存倒排索引下，缓存热路径成本超过节省的检索计算，故默认模式为 `none`。Redis L2 保留用于跨实例共享和未来 MySQL/RAG 等昂贵下游；双实例实验已验证实例 B 可以只读 Redis 而不回源写入。
 
-完整数据见 [缓存压测记录](docs/benchmarks/cache-mode-hot-query-2026-08-23.md)。
+缓存实现、三轮对照数据和默认关闭原因见[检索与缓存取舍](docs/02_核心实现/检索与缓存取舍.md)。
 
 ## 构建与运行
 
@@ -95,12 +95,12 @@ bash scripts/profile_cpu.sh
 bash scripts/verify_redis_l2_cross_instance.sh
 ```
 
-- [项目讲述骨架](docs/interview/cpp-search-server-story.md)
-- [Redis 缓存阶段验收](docs/phase-reviews/redis-cache-phase.md)
-- [多 Reactor 压测记录](docs/benchmarks/multi-reactor-io-loop-scaling-2026-08-19.md)
-- [WorkerPool 扩展实验](docs/benchmarks/worker-pool-baseline-2026-08-17.md)
-- [请求分阶段耗时诊断](docs/benchmarks/request-stage-latency-2026-08-25.md)
-- [学习日志](docs/learning-log/)
+- [文档导航](docs/00_导航.md)
+- [项目定位与架构](docs/01_项目总览/项目定位与架构.md)
+- [网络与并发实现](docs/02_核心实现/网络与并发实现.md)
+- [检索与缓存取舍](docs/02_核心实现/检索与缓存取舍.md)
+- [性能证据与复现](docs/03_性能与验证/性能证据与复现.md)
+- [公开项目讲解提纲](docs/04_面试材料/公开项目讲解提纲.md)
 
 ## 下一阶段
 

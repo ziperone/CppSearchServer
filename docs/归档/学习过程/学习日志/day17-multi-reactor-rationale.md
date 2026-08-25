@@ -16,7 +16,7 @@ Release 构建、单元测试、wrk/pidstat 压测记录
 
 ## 数据依据
 
-压测记录见 `docs/benchmarks/worker-pool-baseline-2026-08-17.md`。
+压测记录见 `docs/归档/原始实验/性能原始报告/worker-pool-baseline-2026-08-17.md`。
 
 - `c64` 下，Worker=1 约 141k QPS；更多 Worker 反而引入任务队列、eventfd 和调度成本。
 - `c256` 下，Worker=2 比 Worker=1 有有限收益，说明高连接数时单 Worker 有部分积压；Worker=4/8 再次退化。

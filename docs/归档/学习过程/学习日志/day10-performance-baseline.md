@@ -13,7 +13,7 @@
 - 每轮：30 秒，使用 `--latency`。
 - 资源监控：`pidstat -u -r -d`，与 wrk 测试时间对齐。
 
-完整原始数据见 `docs/benchmarks/baseline-loopback-2026-08-11.md`。
+完整原始数据见 `docs/归档/原始实验/性能原始报告/baseline-loopback-2026-08-11.md`。
 
 ## 读数原则
 

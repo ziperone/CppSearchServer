@@ -28,5 +28,5 @@
 
 ## 保留证据
 
-- 公共报告：`docs/benchmarks/perf-profile-2026-08-25.md`。
-- 私有目录：`D:\FindJob\InterviewPrep\CppSearchServer-perf-2026-08-25\`，保留原始 `perf.data`、完整文本报告、wrk 输出、运行日志和详细分析。
+- 公共报告：`docs/03_性能与验证/性能证据与复现.md`。
+- 私有目录：`D:\FindJob\面试私有资料\CppSearchServer\性能采样证据\`，保留原始 `perf.data`、完整文本报告、wrk 输出、运行日志和详细分析。
